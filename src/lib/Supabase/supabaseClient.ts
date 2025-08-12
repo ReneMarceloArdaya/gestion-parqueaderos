@@ -15,3 +15,14 @@ export type ParkingInsert = Database['public']['Tables']['parqueaderos']['Insert
 export type ParkingUpdate = Database['public']['Tables']['parqueaderos']['Update']
 
 export type Usuario = Database['public']['Tables']['usuarios']['Row']
+
+
+export type UserWithRole = {
+  id: string
+  email: string | null
+  user_metadata?: {
+    full_name?: string
+    avatar_url?: string
+  }
+  rol: 'usuario' | 'admin' | 'operador' | null
+}
