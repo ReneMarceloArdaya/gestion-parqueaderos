@@ -131,16 +131,10 @@ export function Header() {
             <MapPin className="h-4 w-4" />
             <span>Mapa</span>
           </Link>
-          <Link
-            href="/about"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-          >
-            Acerca de
-          </Link>
         </nav>
 
         {/* Autenticación y menú móvil */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 justify-end">
           {loading ? (
             <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
           ) : user ? (
@@ -170,14 +164,6 @@ export function Header() {
                     <p className="text-xs leading-none text-muted-foreground">
                       {user.email}
                     </p>
-                    {userRole && (
-                      <p className="text-xs leading-none text-muted-foreground mt-1">
-                        Rol:{" "}
-                        <span className="capitalize font-medium">
-                          {userRole}
-                        </span>
-                      </p>
-                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -239,12 +225,6 @@ export function Header() {
                   >
                     <MapPin className="h-4 w-4" />
                     <span>Mapa</span>
-                  </Link>
-                  <Link
-                    href="/about"
-                    className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-100 text-sm text-muted-foreground"
-                  >
-                    <span>Acerca de</span>
                   </Link>
 
                   {user && (
