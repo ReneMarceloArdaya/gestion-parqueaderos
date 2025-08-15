@@ -1,176 +1,402 @@
-'use client'
+"use client";
 
-import { useEffect, useRef, useState } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
-import { Parking } from '@/lib/Supabase/supabaseClient'
-import { Car, MapPin } from 'lucide-react'
+import { useEffect, useRef, useState } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { createClient } from "@/lib/Supabase/supabaseClient";
+import { Car, MapPin, Loader2 } from "lucide-react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ParkingMarkerContent } from "./parking-marker";
+
+// Importa tu token de Mapbox
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+interface ParkingWithCoordinates {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  tipo: "publico" | "privado";
+  capacidad_total: number;
+  direccion: string | null;
+  ciudad: string | null;
+  pais: string | null;
+  zona: string | null;
+  activo: boolean;
+  longitude: number;
+  latitude: number;
+}
 
 export function ParkingMap() {
-  const mapContainer = useRef<HTMLDivElement>(null)
-  const map = useRef<mapboxgl.Map | null>(null)
-  const [parkings, setParkings] = useState<Parking[]>([])
-  const [loading, setLoading] = useState(true)
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const [parkings, setParkings] = useState<ParkingWithCoordinates[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = createClient();
 
-  // Configurar Mapbox solo en el cliente
+  // Cargar datos reales de parqueaderos con coordenadas convertidas
   useEffect(() => {
-    // Configurar token y plugin solo en el cliente
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
-    
-    // Solo configurar plugin si no está ya configurado
-    if (mapboxgl.getRTLTextPluginStatus() === 'unavailable') {
-      mapboxgl.setRTLTextPlugin(
-        'https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.2.3/mapbox-gl-rtl-text.js',
-        null,
-        true
-      )
-    }
-  }, [])
+    const fetchParkings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  // Cargar datos de parqueaderos (temporalmente mock)
-  useEffect(() => {
-    // Datos de ejemplo mientras conectamos con Supabase
-    const mockParkings: Parking[] = [
-      {
-        id: 1,
-        operador_id: 1,
-        nombre: "Parqueadero Central",
-        descripcion: "Parqueadero público con 100 espacios",
-        tipo: "publico",
-        capacidad_total: 100,
-        geom: "POINT(-74.08175 4.60971)",
-        direccion: "Calle 100 #13-21",
-        ciudad: "Bogotá",
-        pais: "Colombia",
-        zona: "Chapinero",
-        activo: true,
-        creado_at: new Date().toISOString(),
-        actualizado_at: new Date().toISOString()
-      },
-      {
-        id: 2,
-        operador_id: 1,
-        nombre: "Parking Mall",
-        descripcion: "Parqueadero privado del centro comercial",
-        tipo: "privado",
-        capacidad_total: 200,
-        geom: "POINT(-74.0721 4.6102)",
-        direccion: "Calle 93 #15-25",
-        ciudad: "Bogotá",
-        pais: "Colombia",
-        zona: "Usaquén",
-        activo: true,
-        creado_at: new Date().toISOString(),
-        actualizado_at: new Date().toISOString()
+        // Usar la función RPC
+        const { data, error } = await (supabase as any).rpc(
+          "get_parkings_with_coordinates"
+        );
+
+        if (error) {
+          console.error("Supabase error:", error);
+          throw error;
+        }
+
+        // Filtrar parqueaderos con coordenadas válidas
+        const validParkings = (data || [])
+          .filter(
+            (parking: any) =>
+              parking.longitude !== null &&
+              parking.latitude !== null &&
+              !isNaN(parseFloat(parking.longitude)) &&
+              !isNaN(parseFloat(parking.latitude))
+          )
+          .map((parking: any) => ({
+            id: parking.id,
+            nombre: parking.nombre,
+            descripcion: parking.descripcion,
+            tipo: parking.tipo,
+            capacidad_total: parking.capacidad_total,
+            direccion: parking.direccion,
+            ciudad: parking.ciudad,
+            pais: parking.pais,
+            zona: parking.zona,
+            activo: parking.activo,
+            longitude: parseFloat(parking.longitude),
+            latitude: parseFloat(parking.latitude),
+          }));
+
+        console.log("Valid parkings loaded:", validParkings);
+        setParkings(validParkings);
+      } catch (err: any) {
+        console.error("Error fetching parkings:", err);
+        setError(err.message || "Error al cargar los parqueaderos");
+      } finally {
+        setLoading(false);
       }
-    ]
+    };
 
-    setParkings(mockParkings)
-    setLoading(false)
-  }, [])
+    fetchParkings();
+  }, [supabase]);
 
-  // Inicializar mapa
+  // Crear contenido del popup
+  const createPopupContent = (parking: ParkingWithCoordinates) => {
+    const container = document.createElement("div");
+
+    // Renderizar el componente React a HTML estático
+    const htmlString = renderToStaticMarkup(
+      <ParkingMarkerContent
+        parking={parking}
+        onDetails={(id) => {
+          console.log("Ver detalles de:", id);
+          // Aquí irá la navegación a detalles
+        }}
+        onReserve={(id) => {
+          console.log("Reservar:", id);
+          // Aquí irá la reserva
+        }}
+      />
+    );
+
+    container.innerHTML = htmlString;
+
+    // Agregar eventos manualmente ya que renderToStaticMarkup no incluye handlers
+    setTimeout(() => {
+      const detailsBtn = container.querySelector("button:nth-child(1)");
+      const reserveBtn = container.querySelector("button:nth-child(2)");
+
+      if (detailsBtn) {
+        detailsBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          console.log("Ver detalles de:", parking.id);
+        });
+      }
+
+      if (reserveBtn) {
+        reserveBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          console.log("Reservar:", parking.id);
+        });
+      }
+    }, 0);
+
+    return container;
+  };
+
+  // Inicializar mapa y agregar marcadores
   useEffect(() => {
-    if (!mapContainer.current || !parkings.length) return
+    if (!mapContainer.current || !parkings.length) {
+      if (!parkings.length && !loading) {
+        console.log("No parkings to display");
+      }
+      return;
+    }
 
-    // Configurar token nuevamente por si acaso
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''
+    console.log("Initializing map with parkings:", parkings);
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      center: [-74.08175, 4.60971],
-      zoom: 13,
-      // Desactivar telemetría
-      collectResourceTiming: false,
-      fadeDuration: 0,
-      attributionControl: false
-    })
+    // Limpiar marcadores anteriores
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = [];
 
-    // Agregar controles mínimos
-    map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right')
+    // Inicializar mapa si no existe
+    if (!map.current) {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/streets-v11",
+        center: [-74.08175, 4.60971], // Centro en Bogotá
+        zoom: 12,
+        collectResourceTiming: false,
+        fadeDuration: 0,
+        attributionControl: false,
+      });
+
+      // Agregar controles
+      map.current.addControl(
+        new mapboxgl.NavigationControl({ showCompass: false }),
+        "top-right"
+      );
+    }
 
     // Agregar marcadores cuando el mapa esté cargado
-    map.current.on('load', () => {
-      parkings.forEach(parking => {
+    map.current.on("load", () => {
+      console.log("Map loaded, adding markers...");
+
+      parkings.forEach((parking, index) => {
         try {
-          // Parsear coordenadas del POINT de PostGIS
-          const coords = parking.geom
-            .replace('POINT(', '')
-            .replace(')', '')
-            .split(' ')
-            .map(Number)
-          
-          const [lng, lat] = coords
+          const lng = parking.longitude;
+          const lat = parking.latitude;
 
           // Validar coordenadas
-          if (isNaN(lat) || isNaN(lng)) {
-            console.warn('Coordenadas inválidas para parqueadero:', parking.nombre)
-            return
+          if (!lng || !lat || isNaN(lat) || isNaN(lng)) {
+            console.warn(`Invalid coordinates for parking ${parking.nombre}:`, {
+              lng,
+              lat,
+            });
+            return;
           }
+
+          // Crear elemento para el marcador visual
+          const el = document.createElement("div");
+          el.className = "cursor-pointer";
+
+          // Diseño mejorado del marcador
+          el.innerHTML = `
+      <div class="relative">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white transform transition-all duration-200 hover:scale-110 ${
+          parking.tipo === "publico"
+            ? "bg-blue-500 hover:bg-blue-600"
+            : "bg-red-500 hover:bg-red-600"
+        }">
+          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8 16s6-5.686 6-10A6 6 0 002 6c0 4.314 6 10 6 10zm0-7a3 3 0 110-6 3 3 0 010 6z"/>
+          </svg>
+        </div>
+        <div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 ${
+          parking.tipo === "publico" ? "bg-blue-500" : "bg-red-500"
+        } rounded-full"></div>
+      </div>
+    `;
 
           // Crear marcador
           const marker = new mapboxgl.Marker({
-            color: parking.tipo === 'publico' ? '#3b82f6' : '#ef4444'
+            element: el,
+            anchor: "bottom",
           })
             .setLngLat([lng, lat])
-            .setPopup(
-              new mapboxgl.Popup({ offset: 25 }).setHTML(`
-                <div class="p-2 max-w-xs">
-                  <h3 class="font-bold text-gray-800 text-sm">${parking.nombre}</h3>
-                  <p class="text-xs text-gray-600 mt-1">${parking.direccion}</p>
-                  <p class="text-xs text-gray-500 mt-1">Capacidad: ${parking.capacidad_total} espacios</p>
-                  <div class="mt-2">
-                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      parking.tipo === 'publico' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-red-100 text-red-800'
-                    }">
-                      ${parking.tipo === 'publico' ? 'Público' : 'Privado'}
-                    </span>
-                  </div>
-                </div>
-              `)
-            )
-            .addTo(map.current!)
+            .addTo(map.current!);
+
+          markersRef.current.push(marker);
+
+          // Agregar popup con shadcn/ui
+          marker.setPopup(
+            new mapboxgl.Popup({
+              offset: 25,
+              className: "parking-popup",
+            }).setDOMContent(createPopupContent(parking))
+          );
         } catch (error) {
-          console.error('Error al crear marcador para:', parking.nombre, error)
+          console.error("Error creating marker for:", parking.nombre, error);
         }
-      })
-    })
+      });
+
+      // Ajustar vista al primer parqueadero si existe
+      if (
+        parkings.length > 0 &&
+        parkings[0].longitude &&
+        parkings[0].latitude
+      ) {
+        map.current?.setCenter([parkings[0].longitude, parkings[0].latitude]);
+      }
+    });
 
     // Manejar errores del mapa
-    map.current.on('error', (e) => {
-      console.error('Error en Mapbox:', e.error)
-    })
+    map.current.on("error", (e) => {
+      console.error("Mapbox error:", e.error);
+    });
 
-    // Limpiar mapa al desmontar
+    // Limpiar mapa y marcadores al desmontar
     return () => {
+      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current = [];
       if (map.current) {
-        map.current.remove()
+        map.current.remove();
+        map.current = null;
       }
-    }
-  }, [parkings])
+    };
+  }, [parkings, loading]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
+      <div className="flex items-center justify-center h-screen w-full bg-gray-100">
         <div className="text-center">
-          <Car className="h-8 w-8 animate-spin mx-auto text-blue-500" />
-          <p className="mt-2 text-gray-500">Cargando parqueaderos...</p>
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-blue-500" />
+          <p className="mt-4 text-gray-600 font-medium">
+            Cargando parqueaderos...
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            Verificando {parkings.length} parqueaderos
+          </p>
         </div>
       </div>
-    )
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-gray-100">
+        <div className="text-center p-6 bg-white rounded-lg shadow-md max-w-md">
+          <div className="text-red-500 mb-3">
+            <svg
+              className="h-12 w-12 mx-auto"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Error al cargar
+          </h3>
+          <p className="text-gray-600 mb-4 text-sm">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <svg
+              className="mr-2 h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay parqueaderos pero no hay error
+  if (!parkings.length && !loading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-full bg-gray-100">
+        <div className="text-center p-6 bg-white rounded-lg shadow-md max-w-md">
+          <MapPin className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Sin parqueaderos disponibles
+          </h3>
+          <p className="text-gray-600 mb-4">
+            No se encontraron parqueaderos activos en la base de datos.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <svg
+              className="mr-2 h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] w-full">
-      <div 
-        ref={mapContainer} 
+    <div
+      className="relative w-full"
+      style={{ height: "calc(100vh - 4rem - 4rem)" }}
+    >
+      <div
+        ref={mapContainer}
         className="absolute inset-0"
-        style={{ minHeight: '100%' }}
+        style={{ height: "100%", width: "100%" }}
       />
-      
+
+      {/* Leyenda */}
+      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-3 z-10">
+        <h3 className="font-semibold text-sm mb-2">Tipos de Parqueaderos</h3>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+            <span>Público</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span>Privado</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Contador de parqueaderos */}
+      <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 z-10">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-gray-500" />
+          <span className="text-sm font-medium">
+            {parkings.length} parqueaderos
+          </span>
+        </div>
+      </div>
+
+      {/* Panel de información */}
+      <div className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-3 z-10 max-w-xs">
+        <h3 className="font-semibold text-sm mb-1">ParkManager</h3>
+        <p className="text-xs text-gray-600">
+          Encuentra y reserva parqueaderos cercanos
+        </p>
+      </div>
     </div>
-  )
+  );
 }

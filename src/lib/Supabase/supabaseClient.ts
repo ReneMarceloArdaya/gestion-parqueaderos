@@ -26,3 +26,6 @@ export type UserWithRole = {
   }
   rol: 'usuario' | 'admin' | 'operador' | null
 }
+
+
+
