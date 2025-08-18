@@ -52,6 +52,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className="hover:bg-gray-800 p-2 rounded">
             Dashboard
           </Link>
+            <Link href="/admin/operadores" className="hover:bg-gray-800 p-2 rounded">
+            Operadores
+          </Link>
           <Link href="/admin/parqueadores" className="hover:bg-gray-800 p-2 rounded">
             Parqueaderos
           </Link>
