@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/Supabase/supabaseClient'
-import { ParkingMap } from '../../../Components/map/praking-map'
+import { EditableParkingMap } from "../../../Components/parqueadores/EditableParkingMap"
+
 
 interface ParqueaderoFormProps {
   initialData?: {
@@ -43,8 +44,15 @@ export default function NuevoParqueaderoPage({ initialData }: ParqueaderoFormPro
   const [pais, setPais] = useState(initialData?.pais || '')
   const [zona, setZona] = useState(initialData?.zona || '')
 
+  const [imagenes, setImagenes] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const handleImagenesChange = (files: FileList | null) => {
+    if (files) setImagenes(Array.from(files))
+  }
+
+  
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
@@ -94,20 +102,68 @@ export default function NuevoParqueaderoPage({ initialData }: ParqueaderoFormPro
     setLoading(true)
     try {
       const geomValue = `POINT(${lng} ${lat})`
+    
+  //     // 1. Crear parqueadero
+  //     const { data: parqueaderoData, error: parqueaderoError } = await createParqueadero({
+  //       nombre,
+  //       descripcion,
+  //       tipo,
+  //       capacidad_total: capacidadTotal,
+  //       activo,
+  //       geom: geomValue,
+  //       direccion,
+  //       ciudad,
+  //       pais,
+  //       zona
+  //     }, supabase)
 
+  //     if (parqueaderoError) throw parqueaderoError
+
+  //     const parqueadero = Array.isArray(parqueaderoData) ? parqueaderoData[0] : parqueaderoData
+  //     if (!parqueadero?.id) throw new Error("No se pudo obtener el ID del parqueadero creado")
+
+  //     // 2. Subir imágenes al bucket e insertarlas en la tabla
+  //     for (const file of imagenes) {
+  //       const filePath = `parqueaderos/${parqueadero.id}/${Date.now()}-${file.name}`
+
+  //       const { error: uploadError } = await supabase.storage
+  //         .from("Imagen") 
+  //         .upload(filePath, file)
+
+  //       if (uploadError) throw uploadError
+
+  //       const { data: urlData } = supabase.storage
+  //         .from("Imagen")
+  //         .getPublicUrl(filePath)
+
+  //       await supabase.from("parqueadero_imagenes").insert({
+  //         parqueadero_id: parqueadero.id,
+  //         url: urlData.publicUrl,
+  //       })
+  //     }
+
+  //     // 3. Redirigir
+  //     router.push('/admin/parqueadores')
+  //     router.refresh()
+  //   } catch (err: any) {
+  //     setError(err.message || 'Error al crear el parqueadero')
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
       await createParqueadero({
         nombre,
         descripcion,
         tipo,
-        capacidad_total: capacidadTotal,
         activo,
+        capacidad_total: capacidadTotal,
         geom: geomValue,
         direccion,
         ciudad,
         pais,
         zona
       }, supabase)
-
+      
       router.push('/admin/parqueadores')
       router.refresh()
     } catch (err: any) {
@@ -129,7 +185,7 @@ export default function NuevoParqueaderoPage({ initialData }: ParqueaderoFormPro
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Datos generales */}
+         
           <div>
             <h2 className="text-lg font-semibold text-gray-700 mb-4">Datos Generales</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -211,13 +267,49 @@ export default function NuevoParqueaderoPage({ initialData }: ParqueaderoFormPro
             </div>
 
             {/* Mapa */}
-            <div className="mt-6 relative w-full h-96 border rounded-xl overflow-hidden shadow-md">
-              <ParkingMap />
-              <div
-                className="absolute inset-0 cursor-crosshair"
-                onClick={handleMapClick}
-              />
-            </div>
+         <div className="mt-6 relative w-full h-96 border rounded-xl overflow-hidden shadow-md">
+                  <EditableParkingMap
+                    lat={lat}
+                    lng={lng}
+                    onChange={(newLat, newLng, info) => {
+                      setLat(newLat)
+                      setLng(newLng)
+                      if (info) {
+                        setDireccion(info.direccion || "")
+                        setCiudad(info.ciudad || "")
+                        setZona(info.zona || "")
+                        setPais(info.pais || "")
+                      }
+                    }}
+                   />
+        </div>
+
+
+          </div>
+          {/* imágenes */}
+          <div>
+            <Label>Imágenes</Label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => handleImagenesChange(e.target.files)}
+              className="mt-2"
+            />
+            {imagenes.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                {imagenes.map((file, i) => (
+                  <div key={i} className="border rounded-lg p-2 shadow">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={`preview-${i}`}
+                      className="w-full h-32 object-cover rounded"
+                    />
+                    <p className="text-xs mt-1 text-center truncate">{file.name}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">

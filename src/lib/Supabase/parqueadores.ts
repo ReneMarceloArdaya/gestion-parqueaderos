@@ -22,16 +22,17 @@ export async function getParqueaderoById(id: number, supabase: SupabaseClient): 
   return data
 }
 
-export async function createParqueadero(parqueadero: ParkingInsert, supabase: SupabaseClient) {
+// lib/Supabase/parqueadores.ts
+export async function createParqueadero(parqueadero: any, supabase: any) {
   const { data, error } = await supabase
-    .from('parqueaderos')
+    .from("parqueaderos")
     .insert(parqueadero)
-    .select()
-    .single()
+    .select("id") // 👈 esto es clave
+    .single()    // 👈 así devuelve solo un objeto, no un array
 
-  if (error) throw error
-  return data
+  return { data, error }
 }
+
 
 export async function updateParqueadero(id: number, parqueadero: ParkingUpdate, supabase: SupabaseClient) {
   const { data, error } = await supabase

@@ -7,7 +7,42 @@ import { updateParqueadero } from '@/lib/Supabase/parqueadores'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ParkingMap } from '../../../../Components/map/praking-map'
+import { EditableParkingMap} from '../../../../Components/parqueadores/EditableParkingMap'
+
+/** ✅ Parser robusto WKT o EWKB */
+function parseGeomToLngLat(geom?: string | null): { lng: number; lat: number } | null {
+  if (!geom) return null
+  const g = geom.trim()
+
+  // WKT: POINT(lng lat)
+  const wkt = g.match(/POINT\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i)
+  if (wkt) {
+    return { lng: parseFloat(wkt[1]), lat: parseFloat(wkt[2]) }
+  }
+
+  // EWKB hex
+  try {
+    const hex = g.startsWith("0x") ? g.slice(2) : g
+    const bytes = new Uint8Array(hex.length / 2)
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16)
+    }
+    const dv = new DataView(bytes.buffer)
+    const little = dv.getUint8(0) === 1
+
+    const type = dv.getUint32(1, little)
+    let offset = 5
+    const EWKB_SRID_FLAG = 0x20000000
+    if ((type & EWKB_SRID_FLAG) !== 0) offset += 4
+
+    const lng = dv.getFloat64(offset, little)
+    const lat = dv.getFloat64(offset + 8, little)
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return { lng, lat }
+  } catch {
+    // ignore
+  }
+  return null
+}
 
 export default function EditarParqueaderoPage() {
   const router = useRouter()
@@ -36,52 +71,45 @@ export default function EditarParqueaderoPage() {
 
   const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
 
-  // Fetch inicial con ST_X y ST_Y
-useEffect(() => {
-  async function fetchData() {
-    const { data, error } = await supabase
-      .from('parqueaderos')
-      .select('*')
-      .eq('id', id)
-      .single()
+  // ✅ Fetch inicial con parser robusto
+  useEffect(() => {
+    async function fetchData() {
+      const { data, error } = await supabase
+        .from('parqueaderos')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-    if (error) {
-      console.error(error)
-      setError('No se pudo cargar el parqueadero')
-      return
+      if (error) {
+        console.error(error)
+        setError('No se pudo cargar el parqueadero')
+        return
+      }
+      if (!data) return
+
+      setNombre(data.nombre || '')
+      setDescripcion(data.descripcion || '')
+      setTipo((data.tipo as 'publico' | 'privado') || '')
+      setCapacidadTotal(data.capacidad_total || 0)
+      setActivo(data.activo ?? true)
+      setDireccion(data.direccion || '')
+      setCiudad(data.ciudad || '')
+      setPais(data.pais || '')
+      setZona(data.zona || '')
+
+      // 👇 obtiene coords del geom
+      const coords = parseGeomToLngLat(data.geom)
+      if (coords) {
+        setLng(coords.lng)
+        setLat(coords.lat)
+      } else {
+        setLng(null)
+        setLat(null)
+      }
     }
 
-    if (!data) return
-
-    setNombre(data.nombre || '')
-    setDescripcion(data.descripcion || '')
-    setTipo(data.tipo || '')
-    setCapacidadTotal(data.capacidad_total || 0)
-    setActivo(data.activo ?? true)
-    setDireccion(data.direccion || '')
-    setCiudad(data.ciudad || '')
-    setPais(data.pais || '')
-    setZona(data.zona || '')
-
-    // Manejo de geom (POINT(lng lat))
-   if (data.geom) {
-  // geom = "POINT(lng lat)"
-  const match = data.geom.match(/POINT\(([-\d.]+) ([-\d.]+)\)/)
-  if (match) {
-    setLng(parseFloat(match[1])) // primero es lng
-    setLat(parseFloat(match[2])) // segundo es lat
-  } else {
-    setLng(null)
-    setLat(null)
-  }
-} else {
-  setLng(null)
-  setLat(null)
-} }
-
-  fetchData()
-}, [id, supabase])
-
+    fetchData()
+  }, [id, supabase])
 
   const handleMapClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = (e.target as HTMLElement).getBoundingClientRect()
@@ -246,57 +274,64 @@ useEffect(() => {
               </div>
             </div>
 
-           <div className="mt-6 relative w-full h-96 border rounded-xl overflow-hidden shadow-md">
-              <ParkingMap />
-              <div
-                className="absolute inset-0 cursor-crosshair"
-                onClick={handleMapClick}
-              />
-            </div>
+          <div className="mt-6 relative w-full h-96 border rounded-xl overflow-hidden shadow-md">
+            <EditableParkingMap
+              lat={lat}
+              lng={lng}
+              onChange={(newLat, newLng, info) => {
+                setLat(newLat)
+                setLng(newLng)
+                if (info) {
+                  setDireccion(info.direccion || "")
+                  setCiudad(info.ciudad || "")
+                  setPais(info.pais || "")
+                  setZona(info.zona || "")
+                }
+              }}
+            />
           </div>
-          
+      </div>
 
           <div className="flex justify-between mt-6">
-  <Button
-    type="submit"
-    disabled={loading}
-    className="px-6 bg-blue-600 hover:bg-blue-700"
-  >
-    {loading ? 'Actualizando...' : 'Actualizar Parqueadero'}
-  </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="px-6 bg-blue-600 hover:bg-blue-700"
+            >
+              {loading ? 'Actualizando...' : 'Actualizar Parqueadero'}
+            </Button>
 
-  <Button
-    type="button"
-    disabled={loading}
-    className="px-6 bg-red-600 hover:bg-red-700"
-    onClick={async () => {
-      const confirmDelete = window.confirm(
-        '¿Estás seguro que quieres eliminar este parqueadero? Esta acción no se puede deshacer.'
-      )
-      if (!confirmDelete) return
+            <Button
+              type="button"
+              disabled={loading}
+              className="px-6 bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                const confirmDelete = window.confirm(
+                  '¿Estás seguro que quieres eliminar este parqueadero? Esta acción no se puede deshacer.'
+                )
+                if (!confirmDelete) return
 
-      setLoading(true)
-      try {
-        const { error } = await supabase
-          .from('parqueaderos')
-          .delete()
-          .eq('id', id)
+                setLoading(true)
+                try {
+                  const { error } = await supabase
+                    .from('parqueaderos')
+                    .delete()
+                    .eq('id', id)
 
-        if (error) throw error
+                  if (error) throw error
 
-        router.push('/admin/parqueadores')
-        router.refresh()
-      } catch (err: any) {
-        setError(err.message || 'Error al eliminar el parqueadero')
-      } finally {
-        setLoading(false)
-      }
-    }}
-  >
-    Eliminar Parqueadero
-  </Button>
-</div>
-
+                  router.push('/admin/parqueadores')
+                  router.refresh()
+                } catch (err: any) {
+                  setError(err.message || 'Error al eliminar el parqueadero')
+                } finally {
+                  setLoading(false)
+                }
+              }}
+            >
+              Eliminar Parqueadero
+            </Button>
+          </div>
         </form>
       </div>
     </div>

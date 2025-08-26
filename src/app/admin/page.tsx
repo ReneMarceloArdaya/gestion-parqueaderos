@@ -2,18 +2,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, LineChart, Line, Legend 
+} from "recharts";
 import { createClient } from '@/lib/Supabase/supabaseClient'
 
 type KPIData = { name: string; value: number; };
 type PieData = { name: string; value: number; };
+type OcupacionData = { name: string; ocupadas: number; libres: number };
 
 export default function AdminHomePage() {
   const supabase = createClient();
 
   const [totalParqueaderos, setTotalParqueaderos] = useState(0);
   const [totalReservas, setTotalReservas] = useState(0);
-  const [ocupacionData, setOcupacionData] = useState<KPIData[]>([]);
+  const [ocupacionData, setOcupacionData] = useState<OcupacionData[]>([]);
   const [ocupacionTotal, setOcupacionTotal] = useState(0);
   const [plazasPieData, setPlazasPieData] = useState<PieData[]>([]);
   const [reservasPieData, setReservasPieData] = useState<PieData[]>([]);
@@ -28,7 +32,7 @@ export default function AdminHomePage() {
       setTotalParqueaderos(parqueaderosCount || 0);
 
       // Total reservas activas
-      const { count: reservasCount, data: reservas } = await supabase
+      const { count: reservasCount } = await supabase
         .from("reservas")
         .select("estado,tipo", { count: "exact" })
         .eq("estado", "activa");
@@ -36,17 +40,26 @@ export default function AdminHomePage() {
 
       if (parqueaderos) {
         let totalOcupadas = 0;
-        const ocupacion = await Promise.all(
+
+        const ocupacion: OcupacionData[] = await Promise.all(
           parqueaderos.map(async (p) => {
             const { count: ocupadas } = await supabase
               .from("plazas")
               .select("*", { count: "exact" })
               .eq("nivel_id", p.id)
               .eq("estado", "ocupada");
-            totalOcupadas += ocupadas || 0;
-            return { name: p.nombre, value: ocupadas || 0, total: p.capacidad_total || 0 };
+
+            const ocupadasNum = ocupadas || 0;
+            totalOcupadas += ocupadasNum;
+
+            return { 
+              name: p.nombre || `Parqueadero ${p.id}`, 
+              ocupadas: ocupadasNum, 
+              libres: (p.capacidad_total || 0) - ocupadasNum 
+            };
           })
         );
+
         setOcupacionData(ocupacion);
         setOcupacionTotal(totalOcupadas);
 
@@ -85,9 +98,8 @@ export default function AdminHomePage() {
     <div className="p-6 space-y-6">
       <h1 className="text-3xl font-bold">Panel de Administración</h1>
 
-      {/* KPI Cards coloreadas */}
-      
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className={`bg-white p-4 shadow rounded transition-transform transform hover:scale-105 ${totalParqueaderos > 5 ? "border-l-4 border-blue-500" : ""}`}>
           <h2 className="text-gray-500">Parqueaderos</h2>
           <p className="text-2xl font-bold">{totalParqueaderos}</p>
@@ -102,7 +114,7 @@ export default function AdminHomePage() {
         </div>
       </div>
 
-      {/* Gráfico de barras apiladas: ocupación por parqueadero */}
+      {/* Gráfico de barras apiladas: ocupación por parqueadero
       <div className="bg-white p-4 shadow rounded">
         <h2 className="text-gray-700 mb-4 font-semibold">Ocupación por Parqueadero</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -110,11 +122,11 @@ export default function AdminHomePage() {
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip />
-            <Bar dataKey="value" stackId="a" fill="#4f46e5" />
-            <Bar dataKey="total" stackId="a" fill="#a3a3a3" />
+            <Bar dataKey="ocupadas" stackId="a" fill="#4f46e5" />
+            <Bar dataKey="libres" stackId="a" fill="#a3a3a3" />
           </BarChart>
         </ResponsiveContainer>
-      </div>
+      </div> */}
 
       {/* Dos pasteles lado a lado */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -129,8 +141,7 @@ export default function AdminHomePage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                fill="#4f46e5"
-                label
+                 label
               >
                 {plazasPieData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -151,8 +162,7 @@ export default function AdminHomePage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                fill="#f87171"
-                label
+                 label
               >
                 {reservasPieData.map((entry, index) => (
                   <Cell key={`cell2-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
