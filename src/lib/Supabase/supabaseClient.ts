@@ -15,6 +15,15 @@ export type ParkingInsert = Database['public']['Tables']['parqueaderos']['Insert
 export type ParkingUpdate = Database['public']['Tables']['parqueaderos']['Update']
 
 export type Usuario = Database['public']['Tables']['usuarios']['Row']
+export type Operador = Database['public']['Tables']['operadores']['Row'] & {
+  usuario_id: string | null
+}
+export type OperadorInsert = Database['public']['Tables']['operadores']['Insert'] & {
+  usuario_id?: string | null
+}
+export type OperadorUpdate = Database['public']['Tables']['operadores']['Update'] & {
+  usuario_id?: string | null
+}
 
 
 export type UserWithRole = {

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/Supabase/supabaseClient";
 import { Car, MapPin, Loader2 } from "lucide-react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ParkingMarkerContent } from "./parking-marker";
-
+import { MapFilters } from "./map-filters";
 // Importa tu token de Mapbox
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -34,8 +34,10 @@ export function ParkingMap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [selectedParking, setSelectedParking] =
+    useState<ParkingWithCoordinates | null>(null);
 
-  // Cargar datos reales de parqueaderos con coordenadas convertidas
   useEffect(() => {
     const fetchParkings = async () => {
       try {
@@ -52,7 +54,6 @@ export function ParkingMap() {
           throw error;
         }
 
-        // Filtrar parqueaderos con coordenadas válidas
         const validParkings = (data || [])
           .filter(
             (parking: any) =>
@@ -133,6 +134,27 @@ export function ParkingMap() {
     return container;
   };
 
+  // Función para manejar selección de parqueadero
+  const handleSelectParking = (parking: ParkingWithCoordinates | null) => {
+    setSelectedParking(parking);
+
+    if (parking && map.current) {
+      map.current.setCenter([parking.longitude, parking.latitude]);
+      map.current.setZoom(15);
+
+      // Abrir popup del marcador si existe
+      const marker = markersRef.current.find((m) => {
+        // Aquí necesitarías una forma de identificar el marcador
+        // Podrías guardar el ID del parqueadero en el elemento del marcador
+        return true;
+      });
+
+      if (marker) {
+        marker.togglePopup();
+      }
+    }
+  };
+
   // Inicializar mapa y agregar marcadores
   useEffect(() => {
     if (!mapContainer.current || !parkings.length) {
@@ -142,109 +164,98 @@ export function ParkingMap() {
       return;
     }
 
-    console.log("Initializing map with parkings:", parkings);
-
     // Limpiar marcadores anteriores
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
     // Inicializar mapa si no existe
     if (!map.current) {
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: "mapbox://styles/mapbox/streets-v11",
-        center: [-74.08175, 4.60971], // Centro en Bogotá
-        zoom: 12,
-        collectResourceTiming: false,
-        fadeDuration: 0,
-        attributionControl: false,
-      });
+      // Usar ubicación del usuario
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLng = position.coords.longitude;
+          const userLat = position.coords.latitude;
 
-      // Agregar controles
-      map.current.addControl(
-        new mapboxgl.NavigationControl({ showCompass: false }),
-        "top-right"
+          console.log("Ubicación del usuario:", userLng, userLat);
+
+          map.current = new mapboxgl.Map({
+            container: mapContainer.current!,
+            style: "mapbox://styles/mapbox/streets-v11",
+            center: [userLng, userLat], // 📍 Aquí empieza centrado en el usuario
+            zoom: 15, // Un poco más cerca que 12
+            collectResourceTiming: false,
+            fadeDuration: 0,
+            attributionControl: false,
+          });
+
+          // Agregar controles
+          map.current.addControl(
+            new mapboxgl.NavigationControl({ showCompass: false }),
+            "top-right"
+          );
+
+          
+          addParkingMarkers();
+        },
+        (error) => {
+          console.error("Error obteniendo ubicación:", error);
+          // Fallback si no da permisos → Santa Cruz
+          map.current = new mapboxgl.Map({
+            container: mapContainer.current!,
+            style: "mapbox://styles/mapbox/streets-v11",
+            center: [-63.1711, -17.7833],
+            zoom: 12,
+          });
+          addParkingMarkers();
+        }
       );
     }
 
-    // Agregar marcadores cuando el mapa esté cargado
-    map.current.on("load", () => {
-      console.log("Map loaded, adding markers...");
+    // Función auxiliar para agregar marcadores
+    const addParkingMarkers = () => {
+      if (!map.current) return;
 
-      parkings.forEach((parking, index) => {
+      parkings.forEach((parking) => {
         try {
           const lng = parking.longitude;
           const lat = parking.latitude;
 
-          // Validar coordenadas
-          if (!lng || !lat || isNaN(lat) || isNaN(lng)) {
-            console.warn(`Invalid coordinates for parking ${parking.nombre}:`, {
-              lng,
-              lat,
-            });
-            return;
-          }
+          if (!lng || !lat || isNaN(lat) || isNaN(lng)) return;
 
-          // Crear elemento para el marcador visual
           const el = document.createElement("div");
           el.className = "cursor-pointer";
-
-          // Diseño mejorado del marcador
           el.innerHTML = `
-      <div class="relative">
-        <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white transform transition-all duration-200 hover:scale-110 ${
-          parking.tipo === "publico"
-            ? "bg-blue-500 hover:bg-blue-600"
-            : "bg-red-500 hover:bg-red-600"
-        }">
-          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M8 16s6-5.686 6-10A6 6 0 002 6c0 4.314 6 10 6 10zm0-7a3 3 0 110-6 3 3 0 010 6z"/>
-          </svg>
-        </div>
-        <div class="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 ${
-          parking.tipo === "publico" ? "bg-blue-500" : "bg-red-500"
-        } rounded-full"></div>
-      </div>
-    `;
+          <div class="relative">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white transform transition-all duration-200 hover:scale-110 ${
+              parking.tipo === "publico"
+                ? "bg-blue-500 hover:bg-blue-600"
+                : "bg-red-500 hover:bg-red-600"
+            }">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M8 16s6-5.686 6-10A6 6 0 002 6c0 4.314 6 10 6 10zm0-7a3 3 0 110-6 3 3 0 010 6z"/>
+              </svg>
+            </div>
+          </div>
+        `;
 
-          // Crear marcador
-          const marker = new mapboxgl.Marker({
-            element: el,
-            anchor: "bottom",
-          })
+          const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
             .setLngLat([lng, lat])
+            .setPopup(
+              new mapboxgl.Popup({
+                offset: 25,
+                className: "parking-popup",
+              }).setDOMContent(createPopupContent(parking))
+            )
             .addTo(map.current!);
 
           markersRef.current.push(marker);
-
-          // Agregar popup con shadcn/ui
-          marker.setPopup(
-            new mapboxgl.Popup({
-              offset: 25,
-              className: "parking-popup",
-            }).setDOMContent(createPopupContent(parking))
-          );
         } catch (error) {
-          console.error("Error creating marker for:", parking.nombre, error);
+          console.error("Error creando marcador:", parking.nombre, error);
         }
       });
+    };
 
-      // Ajustar vista al primer parqueadero si existe
-      if (
-        parkings.length > 0 &&
-        parkings[0].longitude &&
-        parkings[0].latitude
-      ) {
-        map.current?.setCenter([parkings[0].longitude, parkings[0].latitude]);
-      }
-    });
-
-    // Manejar errores del mapa
-    map.current.on("error", (e) => {
-      console.error("Mapbox error:", e.error);
-    });
-
-    // Limpiar mapa y marcadores al desmontar
+    // Cleanup
     return () => {
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
@@ -318,7 +329,6 @@ export function ParkingMap() {
     );
   }
 
-  // Si no hay parqueaderos pero no hay error
   if (!parkings.length && !loading) {
     return (
       <div className="flex items-center justify-center h-screen w-full bg-gray-100">
@@ -364,10 +374,24 @@ export function ParkingMap() {
         className="absolute inset-0"
         style={{ height: "100%", width: "100%" }}
       />
+      <MapFilters
+        onSearch={(filters) => {
+          console.log("Filtros aplicados:", filters);
+          // Aquí irá la lógica de filtrado
+        }}
+        onReset={() => {
+          console.log("Filtros reseteados");
+          // Aquí irá la lógica para mostrar todos los parqueaderos
+        }}
+        parkings={parkings}
+        selectedParking={selectedParking}
+        onSelectParking={handleSelectParking}
+        isOpen={isFiltersOpen}
+        onToggle={() => setIsFiltersOpen(!isFiltersOpen)}
+      />
 
-      {/* Leyenda */}
       <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-3 z-10">
-        <h3 className="font-semibold text-sm mb-2">Tipos de Parqueaderos</h3>
+        <h3 className="font-semibold text-sm mb-2">Tipos de Parqueos</h3>
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
@@ -385,17 +409,9 @@ export function ParkingMap() {
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-gray-500" />
           <span className="text-sm font-medium">
-            {parkings.length} parqueaderos
+            {parkings.length} Parqueos
           </span>
         </div>
-      </div>
-
-      {/* Panel de información */}
-      <div className="absolute top-4 left-4 bg-white rounded-lg shadow-lg p-3 z-10 max-w-xs">
-        <h3 className="font-semibold text-sm mb-1">ParkManager</h3>
-        <p className="text-xs text-gray-600">
-          Encuentra y reserva parqueaderos cercanos
-        </p>
       </div>
     </div>
   );

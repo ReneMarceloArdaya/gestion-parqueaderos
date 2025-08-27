@@ -18,6 +18,7 @@ export type Database = {
           website: string | null
           creado_at: string
           actualizado_at: string
+          usuario_id: string | null 
         }
         Insert: {
           id?: number
@@ -27,6 +28,7 @@ export type Database = {
           website?: string | null
           creado_at?: string
           actualizado_at?: string
+          usuario_id?: string | null 
         }
         Update: {
           id?: number
@@ -36,8 +38,17 @@ export type Database = {
           website?: string | null
           creado_at?: string
           actualizado_at?: string
+          usuario_id?: string | null 
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "operadores_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       parqueaderos: {
         Row: {
