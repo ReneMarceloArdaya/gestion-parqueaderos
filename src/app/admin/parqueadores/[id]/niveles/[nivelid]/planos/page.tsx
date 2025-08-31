@@ -1,6 +1,6 @@
 import { SupabaseClient, createClient } from "@supabase/supabase-js"
 import { PlanoList } from "../../../../../../Components/planos/PlanoList"
-import { PlanoUpload } from "../../../../../../Components/planos/PlanoUpload"
+import { PlanoForm } from "../../../../../../Components/planos/PlanoForm"
 
 type PageProps = {
   params: { id: string }
@@ -16,8 +16,10 @@ export default function Page({ params }: PageProps) {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Planos del Nivel #{nivelId}</h1>
-      <PlanoUpload supabase={supabase} nivelId={nivelId} onUpload={() => {}} />
-      <PlanoList supabase={supabase} nivelId={nivelId} />
+      {/* <PlanoUpload nivelId={nivelId} /> */}
+ <PlanoForm nivelId={nivelId}  />
+
+      <PlanoList nivelId={nivelId} />
     </div>
   )
 }

@@ -17,9 +17,11 @@ export async function getNivelesByParqueadero(supabase: SupabaseClient, parquead
 }
 
 export async function createNivel(supabase: SupabaseClient, nivel: NivelInsert) {
-  const { error } = await supabase.from("niveles").insert(nivel)
+  const { data, error } = await supabase.from("niveles").insert(nivel).select().single()
   if (error) throw new Error(error.message)
+  return data
 }
+
 
 export async function updateNivel(supabase: SupabaseClient, id: number, nivel: NivelUpdate) {
   const { error } = await supabase.from("niveles").update(nivel).eq("id", id)

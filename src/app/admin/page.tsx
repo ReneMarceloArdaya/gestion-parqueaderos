@@ -1,19 +1,24 @@
 // app/admin/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState,useRef } from "react";
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, Legend 
 } from "recharts";
 import { createClient } from '@/lib/Supabase/supabaseClient'
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
-type KPIData = { name: string; value: number; };
-type PieData = { name: string; value: number; };
+type KPIData = { name: string; value: number };
+type PieData = { name: string; value: number };
 type OcupacionData = { name: string; ocupadas: number; libres: number };
 
 export default function AdminHomePage() {
   const supabase = createClient();
+const dashboardRef = useRef<HTMLDivElement>(null);
 
   const [totalParqueaderos, setTotalParqueaderos] = useState(0);
   const [totalReservas, setTotalReservas] = useState(0);
@@ -22,99 +27,248 @@ export default function AdminHomePage() {
   const [plazasPieData, setPlazasPieData] = useState<PieData[]>([]);
   const [reservasPieData, setReservasPieData] = useState<PieData[]>([]);
   const [reservasLineData, setReservasLineData] = useState<KPIData[]>([]);
-
+  const [recaudacionTotal, setRecaudacionTotal] = useState(0);
+  const [recaudacionPorParqueadero, setRecaudacionPorParqueadero] = useState<KPIData[]>([]);
   useEffect(() => {
     async function fetchData() {
-      // Total parqueaderos
+      // ---------- Total parqueaderos ----------
       const { count: parqueaderosCount, data: parqueaderos } = await supabase
         .from("parqueaderos")
         .select("id,nombre,capacidad_total", { count: "exact" });
       setTotalParqueaderos(parqueaderosCount || 0);
 
-      // Total reservas activas
-      const { count: reservasCount } = await supabase
+      // ---------- Total reservas activas ----------
+      const { count: reservasCount, data: reservas } = await supabase
         .from("reservas")
-        .select("estado,tipo", { count: "exact" })
+        .select("tipo_vehiculo_id", { count: "exact" })
         .eq("estado", "activa");
       setTotalReservas(reservasCount || 0);
 
-      if (parqueaderos) {
-        let totalOcupadas = 0;
+      if (!parqueaderos) return;
 
-        const ocupacion: OcupacionData[] = await Promise.all(
-          parqueaderos.map(async (p) => {
-            const { count: ocupadas } = await supabase
-              .from("plazas")
-              .select("*", { count: "exact" })
-              .eq("nivel_id", p.id)
-              .eq("estado", "ocupada");
+      // ---------- Ocupación por parqueadero ----------
+      let totalOcupadas = 0;
+const ocupacion: OcupacionData[] = await Promise.all(
+  parqueaderos.map(async (p) => {
+    // Contamos plazas ocupadas directamente
+    const { count: ocupadasDirectas } = await supabase
+      .from("plazas")
+      .select("*", { count: "exact" })
+      .eq("parqueadero_id", p.id)
+      .eq("estado", "ocupada");
 
-            const ocupadasNum = ocupadas || 0;
-            totalOcupadas += ocupadasNum;
+    // Contamos plazas que tengan reservas activas o confirmadas
+    const { count: reservasActivas } = await supabase
+      .from("reservas")
+      .select("id", { count: "exact" })
+      .eq("parqueadero_id", p.id)
+      .in("estado", ["activa", "confirmada"]);
 
-            return { 
-              name: p.nombre || `Parqueadero ${p.id}`, 
-              ocupadas: ocupadasNum, 
-              libres: (p.capacidad_total || 0) - ocupadasNum 
-            };
-          })
-        );
+    // Evitamos contar doble si la plaza ya está ocupada y tiene reserva
+    const ocupadasNum = Math.max(ocupadasDirectas || 0, reservasActivas || 0);
+    totalOcupadas += ocupadasNum;
 
-        setOcupacionData(ocupacion);
-        setOcupacionTotal(totalOcupadas);
+    return {
+      name: p.nombre || `Parqueadero ${p.id}`,
+      ocupadas: ocupadasNum,
+      libres: (p.capacidad_total || 0) - ocupadasNum,
+    };
+  })
+);
 
-        // Datos de pastel: plazas ocupadas/libres
-        const totalPlazas = parqueaderos.reduce((acc, p) => acc + (p.capacidad_total || 0), 0);
-        setPlazasPieData([
-          { name: "Ocupadas", value: totalOcupadas },
-          { name: "Libres", value: totalPlazas - totalOcupadas },
-        ]);
+setOcupacionData(ocupacion);
+setOcupacionTotal(totalOcupadas);
 
-        // Segundo pastel: reservas por tipo (simulado si no hay tipos)
-        const tipos = ["VIP", "Normal"];
-        const reservasPie = tipos.map((tipo) => ({
-          name: tipo,
-          value: Math.floor(Math.random() * (reservasCount || 1)) + 1,
-        }));
-        setReservasPieData(reservasPie);
 
-        // Gráfico de líneas: reservas últimas 7 días
-        const today = new Date();
-        const lineData: KPIData[] = Array.from({ length: 7 }).map((_, i) => {
-          const date = new Date();
-          date.setDate(today.getDate() - (6 - i));
-          return { name: date.toLocaleDateString("es-ES"), value: Math.floor(Math.random() * 20) + 1 };
-        });
-        setReservasLineData(lineData);
-      }
+
+
+
+
+// ---------- Recaudación por parqueadero ----------
+let totalRecaudacion = 0;
+const recaudacionParqueaderos: KPIData[] = await Promise.all(
+  (parqueaderos || []).map(async (p) => {
+    const { data: pagos, error } = await supabase
+      .from("transacciones")
+      .select("importe, estado, reserva_id, reservas!inner(parqueadero_id)") // join con reservas
+      .eq("reservas.parqueadero_id", p.id)
+      .eq("estado", "confirmado"); // solo pagos confirmados
+
+    if (error) {
+      console.error(error);
+      return { name: p.nombre, value: 0 };
+    }
+
+    const total = (pagos || []).reduce((acc, t) => acc + (t.importe || 0), 0);
+    totalRecaudacion += total;
+
+    return {
+      name: p.nombre || `Parqueadero ${p.id}`,
+      value: total,
+    };
+  })
+);
+
+setRecaudacionTotal(totalRecaudacion);
+setRecaudacionPorParqueadero(recaudacionParqueaderos);
+
+
+      // ---------- Pastel plazas ocupadas/libres ----------
+      const totalPlazas = parqueaderos.reduce((acc, p) => acc + (p.capacidad_total || 0), 0);
+      setPlazasPieData([
+        { name: "Ocupadas", value: totalOcupadas },
+        { name: "Libres", value: totalPlazas - totalOcupadas },
+      ]);
+
+      // ---------- Pastel reservas por tipo (contar manualmente) ----------
+      const tiposMap: Record<number, number> = {};
+      (reservas || []).forEach(r => {
+        if (r.tipo_vehiculo_id) tiposMap[r.tipo_vehiculo_id] = (tiposMap[r.tipo_vehiculo_id] || 0) + 1;
+      });
+
+      const reservasPie: PieData[] = await Promise.all(
+        Object.entries(tiposMap).map(async ([tipoId, count]) => {
+          const { data: tipo } = await supabase
+            .from("tipos_vehiculo")
+            .select("nombre")
+            .eq("id", Number(tipoId))
+            .single();
+          return { name: tipo?.nombre || "Desconocido", value: count };
+        })
+      );
+      setReservasPieData(reservasPie);
+
+      // ---------- Línea reservas últimas 7 días ----------
+      const today = new Date();
+      const last7Days = Array.from({ length: 7 }).map((_, i) => {
+        const date = new Date();
+        date.setDate(today.getDate() - (6 - i));
+        return date.toISOString().split("T")[0]; // YYYY-MM-DD
+      });
+
+      const lineData: KPIData[] = await Promise.all(
+        last7Days.map(async (day) => {
+          const { count } = await supabase
+            .from("reservas")
+            .select("*", { count: "exact" })
+            .gte("hora_inicio", `${day}T00:00:00`)
+            .lte("hora_inicio", `${day}T23:59:59`);
+
+          return { name: new Date(day).toLocaleDateString("es-ES"), value: count || 0 };
+        })
+      );
+      setReservasLineData(lineData);
     }
 
     fetchData();
   }, []);
 
   const COLORS = ["#4f46e5", "#a3a3a3", "#facc15", "#f87171"];
+  // ---------------- Generar PDF ----------------
 
+const generarPDF = () => {
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.text("Reporte de Parqueos Urban Park", 105, 10, { align: "center" });
+  
+  let y = 20;
+
+  // Sección: Ocupación
+  doc.setFontSize(14);
+  doc.text("1. Ocupación por Parqueo", 10, y);
+  y += 12;
+  doc.setFontSize(12);
+
+  ocupacionData.forEach(d => {
+    doc.text(`Parqueo: ${d.name}`, 10, y);
+    y += 8; // nueva línea
+    doc.text(`Ocupadas: ${d.ocupadas}`, 20, y); // sangría
+    y += 8;
+    doc.text(`Libres: ${d.libres}`, 20, y); // sangría
+    y += 12; // espacio extra entre filas
+  });
+
+  y += 10; // espacio entre secciones
+
+  // Sección: Recaudación
+  doc.setFontSize(14);
+  doc.text("2. Recaudación por Parqueos", 10, y);
+  y += 12;
+  doc.setFontSize(12);
+
+  recaudacionPorParqueadero.forEach(d => {
+    doc.text(`Parqueo: ${d.name}`, 10, y);
+    y += 8;
+    doc.text(`Recaudación: $${d.value}`, 20, y); // sangría
+    y += 12; // espacio entre filas
+  });
+
+  doc.save("reporte_parqueaderos.pdf");
+};
+
+
+  // ---------------- Generar Excel ----------------
+  const generarExcel = () => {
+    if (!ocupacionData.length || !reservasLineData.length) return;
+
+    const wsData = [
+      ["Parqueo", "Ocupadas", "Libres"],
+      ...ocupacionData.map(o => [o.name, o.ocupadas, o.libres]),
+      [],
+      ["Reservas últimas 7 días", "Cantidad"],
+      ...reservasLineData.map(r => [r.name, r.value]),
+      [],
+      ["Recaudación por Parqueos", "Monto"],
+      ...recaudacionPorParqueadero.map(r => [r.name, r.value])
+
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb, ws, "ReporteUrbanPark");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([wbout], { type: "application/octet-stream" }), "dashboard.xlsx");
+  };
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6" ref={dashboardRef}>
       <h1 className="text-3xl font-bold">Panel de Administración</h1>
-
+        {/* Botones de exportación */}
+      <div className="flex gap-4 mb-4">
+        <button
+          onClick={generarPDF}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Exportar PDF
+        </button>
+        <button
+          onClick={generarExcel}
+          className="bg-green-500 text-white px-4 py-2 rounded"
+        >
+          Exportar Excel
+        </button>
+      </div>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className={`bg-white p-4 shadow rounded transition-transform transform hover:scale-105 ${totalParqueaderos > 5 ? "border-l-4 border-blue-500" : ""}`}>
+        <div className="bg-white p-4 shadow rounded">
           <h2 className="text-gray-500">Parqueaderos</h2>
           <p className="text-2xl font-bold">{totalParqueaderos}</p>
         </div>
-        <div className={`bg-white p-4 shadow rounded transition-transform transform hover:scale-105 ${totalReservas > 10 ? "border-l-4 border-green-500" : ""}`}>
+        <div className="bg-white p-4 shadow rounded">
           <h2 className="text-gray-500">Reservas activas</h2>
           <p className="text-2xl font-bold">{totalReservas}</p>
         </div>
-        <div className="bg-white p-4 shadow rounded transition-transform transform hover:scale-105 border-l-4 border-purple-500">
+        <div className="bg-white p-4 shadow rounded">
           <h2 className="text-gray-500">Ocupación total</h2>
           <p className="text-2xl font-bold">{ocupacionTotal}</p>
         </div>
+      <div className="bg-white p-4 shadow rounded">
+        <h2 className="text-gray-500">Recaudación total</h2>
+        <p className="text-2xl font-bold">${recaudacionTotal}</p>
+    </div>    
+
       </div>
 
-      {/* Gráfico de barras apiladas: ocupación por parqueadero
+      {/* Gráfico barras ocupación por parqueadero */}
       <div className="bg-white p-4 shadow rounded">
         <h2 className="text-gray-700 mb-4 font-semibold">Ocupación por Parqueadero</h2>
         <ResponsiveContainer width="100%" height={300}>
@@ -126,7 +280,20 @@ export default function AdminHomePage() {
             <Bar dataKey="libres" stackId="a" fill="#a3a3a3" />
           </BarChart>
         </ResponsiveContainer>
-      </div> */}
+      </div>
+      
+      <div className="bg-white p-4 shadow rounded">
+        <h2 className="text-gray-700 mb-4 font-semibold">Recaudación por Parqueadero</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={recaudacionPorParqueadero}>
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip formatter={(value) => `$${value}`} />
+                <Bar dataKey="value" fill="#facc15" />
+              </BarChart>
+            </ResponsiveContainer>    
+      </div>
+
 
       {/* Dos pasteles lado a lado */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -141,7 +308,7 @@ export default function AdminHomePage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                 label
+                label
               >
                 {plazasPieData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -162,7 +329,7 @@ export default function AdminHomePage() {
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
-                 label
+                label
               >
                 {reservasPieData.map((entry, index) => (
                   <Cell key={`cell2-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />
@@ -174,7 +341,7 @@ export default function AdminHomePage() {
         </div>
       </div>
 
-      {/* Gráfico de líneas: reservas últimas 7 días */}
+      {/* Gráfico líneas reservas últimas 7 días */}
       <div className="bg-white p-4 shadow rounded">
         <h2 className="text-gray-700 mb-4 font-semibold">Reservas últimas 7 días</h2>
         <ResponsiveContainer width="100%" height={300}>

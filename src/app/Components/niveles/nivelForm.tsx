@@ -12,29 +12,52 @@ type NivelFormProps = {
 }
 
 export function NivelForm({ supabase, parqueaderoId, onSave, nivelToEdit }: NivelFormProps) {
-  const [nombre, setNombre] = useState(nivelToEdit?.nombre || "")
-  const [orden, setOrden] = useState(nivelToEdit?.orden || 0)
-  const [capacidad, setCapacidad] = useState(nivelToEdit?.capacidad || 0)
-  const [geom, setGeom] = useState(nivelToEdit?.geom || "")
+  const [nombre, setNombre] = useState("")
+  const [orden, setOrden] = useState<number | null>(null)
+  const [capacidad, setCapacidad] = useState<number | null>(null)
+  const [geom, setGeom] = useState("")
+
+  // cada vez que cambia nivelToEdit → llenar formulario
+  useEffect(() => {
+    if (nivelToEdit) {
+      setNombre(nivelToEdit.nombre || "")
+      setOrden(nivelToEdit.orden ?? null)
+      setCapacidad(nivelToEdit.capacidad ?? null)
+      setGeom(nivelToEdit.geom || "")
+    } else {
+      setNombre("")
+      setOrden(null)
+      setCapacidad(null)
+      setGeom("")
+    }
+  }, [nivelToEdit])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     const nivelData: NivelInsert = {
       parqueadero_id: parqueaderoId,
-      nombre,
+      nombre: nombre || null,
       orden,
       capacidad,
-      geom,
+      geom: geom || null,
     }
 
     try {
       if (nivelToEdit) {
-        await supabase.from("niveles").update(nivelData).eq("id", nivelToEdit.id)
+        const { error } = await supabase.from("niveles").update(nivelData).eq("id", nivelToEdit.id)
+        if (error) throw error
       } else {
-        await supabase.from("niveles").insert(nivelData)
+        const { error } = await supabase.from("niveles").insert(nivelData)
+        if (error) throw error
       }
+
       onSave()
-      setNombre(""); setOrden(0); setCapacidad(0); setGeom("")
+      // limpiar formulario
+      setNombre("")
+      setOrden(null)
+      setCapacidad(null)
+      setGeom("")
     } catch (error: any) {
       alert(error.message)
     }
@@ -53,15 +76,15 @@ export function NivelForm({ supabase, parqueaderoId, onSave, nivelToEdit }: Nive
       <input
         type="number"
         placeholder="Orden"
-        value={orden}
-        onChange={e => setOrden(Number(e.target.value))}
+        value={orden ?? ""}
+        onChange={e => setOrden(e.target.value ? Number(e.target.value) : null)}
         className="border p-2 w-full"
       />
       <input
         type="number"
         placeholder="Capacidad"
-        value={capacidad}
-        onChange={e => setCapacidad(Number(e.target.value))}
+        value={capacidad ?? ""}
+        onChange={e => setCapacidad(e.target.value ? Number(e.target.value) : null)}
         className="border p-2 w-full"
       />
       <input

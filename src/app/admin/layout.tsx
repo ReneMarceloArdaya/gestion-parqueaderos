@@ -56,11 +56,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Operadores
           </Link>
           <Link href="/admin/parqueadores" className="hover:bg-gray-800 p-2 rounded">
-            Parqueaderos
+            Parqueos
           </Link>
           <Link href="/admin/tipos-vehiculo" className="hover:bg-gray-800 p-2 rounded">
             Tipos de Vehiculo
           </Link>
+           <Link href="/admin/usuarios" className="hover:bg-gray-800 p-2 rounded">
+            Gestión de Usuarios
+          </Link>
+           <Link href="/admin/Reservas" className="hover:bg-gray-800 p-2 rounded">
+            Reservas
+          </Link>
+          <Link href="/admin/transaccion" className="hover:bg-gray-800 p-2 rounded">
+            Transacciones
+          </Link>
+          
         </nav>
 
         <button

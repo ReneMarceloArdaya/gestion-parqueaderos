@@ -44,9 +44,13 @@ export function NivelList({parqueaderoId }: NivelListProps) {
       <NivelForm
         supabase={supabase}
         parqueaderoId={parqueaderoId}
-        onSave={fetchNiveles}
+        onSave={() => {
+          fetchNiveles()
+          setEditingNivel(null) // 👈 limpiar edición
+        }}
         nivelToEdit={editingNivel || undefined}
       />
+
      <table className="min-w-full divide-y divide-gray-200 shadow rounded-lg overflow-hidden mt-4">
   <thead className="bg-gray-100">
     <tr>
@@ -79,9 +83,9 @@ export function NivelList({parqueaderoId }: NivelListProps) {
           </button>
           <button
             className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg shadow-sm transition"
-            onClick={() => router.push(`/admin/parqueadores/${n.id}/niveles/${n.id}/planos`)}
+            onClick={() => router.push(`/admin/parqueadores/${parqueaderoId}/niveles/${n.id}/plaza`)}
           >
-            Agregar plano
+            Agregar plaza
           </button>
         </td>
       </tr>

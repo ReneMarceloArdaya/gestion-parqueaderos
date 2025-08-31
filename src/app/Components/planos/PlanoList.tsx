@@ -1,15 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { SupabaseClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/Supabase/supabaseClient"
 import { Plano } from "@/lib/Supabase/planos"
 
 type PlanoListProps = {
-  supabase: SupabaseClient
   nivelId: number
 }
 
-export function PlanoList({ supabase, nivelId }: PlanoListProps) {
+export function PlanoList({ nivelId }: PlanoListProps) {
+  const supabase = createClient()
   const [planos, setPlanos] = useState<Plano[]>([])
 
   const fetchPlanos = async () => {
@@ -52,7 +52,12 @@ export function PlanoList({ supabase, nivelId }: PlanoListProps) {
             <td>{p.nombre}</td>
             <td>{p.tipo}</td>
             <td>
-              <a href={p.url} target="_blank" rel="noreferrer" className="text-blue-500 underline">
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-500 underline"
+              >
                 Ver
               </a>
             </td>
