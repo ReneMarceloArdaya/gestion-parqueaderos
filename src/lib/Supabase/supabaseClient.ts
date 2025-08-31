@@ -25,6 +25,11 @@ export type OperadorUpdate = Database['public']['Tables']['operadores']['Update'
   usuario_id?: string | null
 }
 
+export type Level = Database['public']['Tables']['niveles']['Row']
+export type LevelInsert = Database['public']['Tables']['niveles']['Insert']
+export type LevelUpdate = Database['public']['Tables']['niveles']['Update']
+export type Plaza = Database['public']['Tables']['plazas']['Row']
+
 
 export type UserWithRole = {
   id: string

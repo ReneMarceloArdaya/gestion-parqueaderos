@@ -18,13 +18,12 @@ import {
   Car, 
   BarChart3, 
   Image, 
-  Users, 
-  Settings, 
   Menu, 
   LogOut,
-  MapPin,
   CreditCard,
-  Calendar
+  Calendar,
+  Hotel,
+  SquareParking
 } from "lucide-react"
 import Link from 'next/link'
 import { Operador } from '@/lib/Supabase/supabaseClient'
@@ -113,13 +112,23 @@ export default function OperatorLayout({
   const navigationItems = [
     {
       title: "Dashboard",
-      href: "/operator/dashboard",
+      href: "/operator",
       icon: BarChart3,
     },
     {
       title: "Parqueos",
       href: "/operator/parkings",
       icon: Car,
+    },
+    {
+      title: "Niveles",
+      href: "/operator/levels",
+      icon: Hotel,
+    },
+    {
+      title: "Plazas",
+      href: "/operator/squares",
+      icon: SquareParking,
     },
     {
       title: "Imágenes",
@@ -137,14 +146,9 @@ export default function OperatorLayout({
       icon: CreditCard,
     },
     {
-      title: "Usuarios",
-      href: "/operator/users",
-      icon: Users,
-    },
-    {
       title: "Configuración",
-      href: "/operator/settings",
-      icon: Settings,
+      href: "/operator/configuration",
+      icon: Menu,
     },
   ]
 
@@ -157,7 +161,7 @@ export default function OperatorLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar para escritorio */}
       <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
         <div className="flex flex-col flex-grow border-r bg-background">

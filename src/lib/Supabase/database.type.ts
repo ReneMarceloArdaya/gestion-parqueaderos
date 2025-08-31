@@ -121,6 +121,7 @@ export type Database = {
           activo: boolean
           creado_at: string
           actualizado_at: string
+          public_id_cloudinary: string
         }
         Insert: {
           id?: number
@@ -133,6 +134,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id_cloudinary?: string
         }
         Update: {
           id?: number
@@ -145,6 +147,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id_cloudinary?: string
         }
         Relationships: [
           {
@@ -163,7 +166,6 @@ export type Database = {
           nombre: string | null
           orden: number | null
           capacidad: number | null
-          geom: string | null
           creado_at: string
         }
         Insert: {
@@ -172,7 +174,6 @@ export type Database = {
           nombre?: string | null
           orden?: number | null
           capacidad?: number | null
-          geom?: string | null
           creado_at?: string
         }
         Update: {
@@ -181,7 +182,6 @@ export type Database = {
           nombre?: string | null
           orden?: number | null
           capacidad?: number | null
-          geom?: string | null
           creado_at?: string
         }
         Relationships: [
@@ -207,6 +207,7 @@ export type Database = {
           activo: boolean
           creado_at: string
           actualizado_at: string
+          public_id: string
         }
         Insert: {
           id?: number
@@ -220,6 +221,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id: string
         }
         Update: {
           id?: number
@@ -233,6 +235,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id: string
         }
         Relationships: [
           {

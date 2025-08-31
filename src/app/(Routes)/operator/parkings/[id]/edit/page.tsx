@@ -11,6 +11,7 @@ import { MapPin } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 
 interface FormData {
   id: number
@@ -222,9 +223,20 @@ export default function EditParkingPage() {
 
   return (
     <div className="container mx-auto py-8">
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink href="/operator/parkings">Operadores</BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Parqueos</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <Card>
         <CardHeader>
-          <CardTitle>Editar Parqueadero: {formData.nombre}</CardTitle>
+          <CardTitle>Editar Parqueos: {formData.nombre}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -354,7 +366,7 @@ export default function EditParkingPage() {
             {error && <p className="text-red-600 text-sm">{error}</p>}
 
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Actualizando...' : 'Actualizar Parqueadero'}
+              {loading ? 'Actualizando...' : 'Actualizar Parqueos'}
             </Button>
           </form>
         </CardContent>
