@@ -167,15 +167,6 @@ export default function OperatorHome() {
 
   const navigationCards = [
     {
-      title: "Dashboard",
-      description: "Estadísticas y métricas detalladas",
-      href: "/operator/dashboard",
-      icon: BarChart3,
-      color: "text-blue-500",
-      bgColor: "bg-blue-50",
-      stats: `${stats.totalParqueaderos} parqueaderos`
-    },
-    {
       title: "Parqueaderos",
       description: "Gestiona tus instalaciones",
       href: "/operator/parkings",
@@ -229,7 +220,7 @@ export default function OperatorHome() {
       icon: CreditCard,
       color: "text-emerald-500",
       bgColor: "bg-emerald-50",
-      stats: "Próximamente"
+      stats: "Datos financieros"
     }
   ]
 

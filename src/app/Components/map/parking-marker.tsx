@@ -18,24 +18,50 @@ interface ParkingData {
   activo: boolean;
   longitude: number;
   latitude: number;
+  precio_por_hora?: number | null;
+  imagen_url?: string | null;
 }
 
 interface ParkingMarkerProps {
   parking: ParkingData;
   onDetails?: (id: number) => void;
   onReserve?: (id: number) => void;
+  getDefaultImage?: (parking: ParkingData) => string;
 }
 
 export function ParkingMarkerContent({
   parking,
   onDetails,
   onReserve,
+  getDefaultImage,
 }: ParkingMarkerProps) {
+  // Función para obtener imagen por defecto (fallback si no se pasa como prop)
+  const defaultImageFallback = (parking: ParkingData) => {
+    const color = parking.tipo === "publico" ? "3b82f6" : "ef4444";
+    const initials = parking.nombre.substring(0, 3).toUpperCase();
+    return `https://placehold.co/200x120/${color}/ffffff?text=${encodeURIComponent(initials)}`;
+  };
+
+  const imageUrl = parking.imagen_url || (getDefaultImage ? getDefaultImage(parking) : defaultImageFallback(parking));
+
   return (
     <div className="p-3 max-w-xs bg-white rounded-lg">
+      {/* Imagen del parqueadero */}
+      <div className="w-full h-20 rounded-md overflow-hidden mb-3">
+        <img
+          src={imageUrl}
+          alt={parking.nombre}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.src = defaultImageFallback(parking);
+          }}
+        />
+      </div>
+
       <div className="flex justify-between items-start mb-2">
         <h3 className="font-bold text-gray-800 text-sm px-0.5">
-          {parking.nombre}{" "}
+          {parking.nombre}
         </h3>
         <Badge
           variant={parking.tipo === "publico" ? "default" : "destructive"}
@@ -58,26 +84,20 @@ export function ParkingMarkerContent({
         </p>
       )}
 
-      {parking.tipo === "privado" && parking.descripcion && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-          <Car className="h-3 w-3 text-gray-500" />
-          <span>{parking.capacidad_total} espacios libres</span>
-        </div>
-        )}
-
-        {parking.tipo === "publico" && (
-        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-          <Car className="h-3 w-3 text-gray-500" />
-          <span>{parking.capacidad_total} espacios disponibles</span>
-        </div>
-        )}
-
+      <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
+        <Car className="h-3 w-3 text-gray-500" />
+        <span>
+          {parking.capacidad_total} espacio{parking.capacidad_total !== 1 ? 's' : ''} 
+          {parking.tipo === "publico" ? " disponibles" : " totales"}
+        </span>
+      </div>
 
       <div className="flex gap-2">
         <Button
           size="sm"
           variant="default"
           className="text-xs h-7 px-2"
+          data-action="details"
           onClick={(e) => {
             e.stopPropagation();
             onDetails?.(parking.id);
@@ -85,17 +105,20 @@ export function ParkingMarkerContent({
         >
           Ver detalles
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="text-xs h-7 px-2"
-          onClick={(e) => {
-            e.stopPropagation();
-            onReserve?.(parking.id);
-          }}
-        >
-          Reservar
-        </Button>
+        {parking.tipo === "privado" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs h-7 px-2"
+            data-action="reserve"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReserve?.(parking.id);
+            }}
+          >
+            Reservar
+          </Button>
+        )}
       </div>
     </div>
   );
