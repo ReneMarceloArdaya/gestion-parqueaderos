@@ -20,7 +20,7 @@ export function PlazaForm({ nivelId }: PlazaFormProps) {
   const [codigo, setCodigo] = useState("")
   const [tipo, setTipo] = useState<number | null>(null)
   const [estado, setEstado] = useState<"libre" | "ocupada" | "fuera_servicio">("libre")
-  const [coordenada, setCoordenada] = useState("") // se guardará en formato POINT(lng lat)
+  const [coordenada, setCoordenada] = useState("") // se guardará en formato POLYGON
   const [tiposVehiculo, setTiposVehiculo] = useState<TipoVehiculo[]>([])
 
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -57,7 +57,17 @@ export function PlazaForm({ nivelId }: PlazaFormProps) {
     // Agregar click para seleccionar coordenada
     map.on("click", e => {
       const { lng, lat } = e.lngLat
-      setCoordenada(`POINT(${lng} ${lat})`)
+
+      // Generar polígono pequeño alrededor del punto
+      const polygon = `POLYGON((
+        ${lng} ${lat},
+        ${lng + 0.00001} ${lat},
+        ${lng + 0.00001} ${lat + 0.00001},
+        ${lng} ${lat + 0.00001},
+        ${lng} ${lat}
+      ))`
+
+      setCoordenada(polygon)
 
       // Mover marcador al lugar seleccionado
       if (markerRef.current) markerRef.current.setLngLat([lng, lat])
@@ -82,12 +92,13 @@ export function PlazaForm({ nivelId }: PlazaFormProps) {
       return
     }
 
+    // Insertar el polígono directamente
     const { error } = await supabase.from("plazas").insert({
       nivel_id: nivelId,
       codigo,
       tipo_vehiculo_id: tipo,
       estado,
-      coordenada
+      coordenada // aquí ya es POLYGON(...)
     })
 
     if (error) alert(error.message)

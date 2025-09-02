@@ -11,6 +11,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import autoTable from "jspdf-autotable";
+
 
 type KPIData = { name: string; value: number };
 type PieData = { name: string; value: number };
@@ -99,7 +101,11 @@ const recaudacionParqueaderos: KPIData[] = await Promise.all(
       return { name: p.nombre, value: 0 };
     }
 
-    const total = (pagos || []).reduce((acc, t) => acc + (t.importe || 0), 0);
+    // Filtramos solo importes positivos antes de sumar
+    const total = (pagos || [])
+      .filter(t => (t.importe || 0) > 0)
+      .reduce((acc, t) => acc + (t.importe || 0), 0);
+
     totalRecaudacion += total;
 
     return {
@@ -111,6 +117,7 @@ const recaudacionParqueaderos: KPIData[] = await Promise.all(
 
 setRecaudacionTotal(totalRecaudacion);
 setRecaudacionPorParqueadero(recaudacionParqueaderos);
+
 
 
       // ---------- Pastel plazas ocupadas/libres ----------
@@ -164,45 +171,84 @@ setRecaudacionPorParqueadero(recaudacionParqueaderos);
   }, []);
 
   const COLORS = ["#4f46e5", "#a3a3a3", "#facc15", "#f87171"];
-  // ---------------- Generar PDF ----------------
+// ---------------- Helper para convertir SVG a PNG ----------------
+async function svgToPng(svgElement: SVGElement): Promise<string> {
+  const svgData = new XMLSerializer().serializeToString(svgElement);
+  const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(svgBlob);
 
-const generarPDF = () => {
-  const doc = new jsPDF();
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx?.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.src = url;
+  });
+}
+
+// ---------------- Generar PDF ----------------
+const generarPDF = async () => {
+  const doc = new jsPDF("p", "mm", "a4");
+
+  // ---------------- Título ----------------
+  doc.setTextColor(0, 0, 0);        // negro
+  doc.setFillColor(242, 242, 242);  // gris claro
+
   doc.setFontSize(18);
-  doc.text("Reporte de Parqueos Urban Park", 105, 10, { align: "center" });
-  
-  let y = 20;
+  doc.text("Reporte de Parqueos - Urban Park", 105, 15, { align: "center" });
 
-  // Sección: Ocupación
-  doc.setFontSize(14);
-  doc.text("1. Ocupación por Parqueo", 10, y);
-  y += 12;
   doc.setFontSize(12);
+  doc.text(new Date().toLocaleString("es-ES"), 105, 25, { align: "center" });
 
-  ocupacionData.forEach(d => {
-    doc.text(`Parqueo: ${d.name}`, 10, y);
-    y += 8; // nueva línea
-    doc.text(`Ocupadas: ${d.ocupadas}`, 20, y); // sangría
-    y += 8;
-    doc.text(`Libres: ${d.libres}`, 20, y); // sangría
-    y += 12; // espacio extra entre filas
+  // ---------------- Ocupación por parqueo ----------------
+  autoTable(doc, {
+    startY: 35,
+    head: [["Parqueadero", "Ocupadas", "Libres"]],
+    body: ocupacionData.map(o => [o.name, o.ocupadas, o.libres]),
+    theme: "grid",
+    headStyles: { fillColor: [79, 70, 229], textColor: 255, halign: "center" },
+    bodyStyles: { halign: "center" },
   });
 
-  y += 10; // espacio entre secciones
-
-  // Sección: Recaudación
-  doc.setFontSize(14);
-  doc.text("2. Recaudación por Parqueos", 10, y);
-  y += 12;
-  doc.setFontSize(12);
-
-  recaudacionPorParqueadero.forEach(d => {
-    doc.text(`Parqueo: ${d.name}`, 10, y);
-    y += 8;
-    doc.text(`Recaudación: $${d.value}`, 20, y); // sangría
-    y += 12; // espacio entre filas
+  // ---------------- Recaudación por parqueo ----------------
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 10,
+    head: [["Parqueadero", "Recaudación"]],
+    body: recaudacionPorParqueadero.map(r => [r.name, `$${r.value}`]),
+    theme: "grid",
+    headStyles: { fillColor: [250, 204, 21], textColor: 0, halign: "center" },
+    bodyStyles: { halign: "center" },
   });
 
+  // ---------------- Insertar gráficos filtrados ----------------
+  // Solo tomamos los gráficos que tengan data-show="true"
+  const charts = document.querySelectorAll<SVGElement>(".recharts-wrapper svg[data-show='true']");
+  let y = (doc as any).lastAutoTable.finalY + 20;
+
+  for (let i = 0; i < charts.length; i++) {
+    const chartSvg = charts[i];
+    if (!chartSvg) continue;
+
+    const imgData = await svgToPng(chartSvg);
+    const imgWidth = 180;
+    const imgHeight = (chartSvg.clientHeight * imgWidth) / chartSvg.clientWidth;
+
+    if (y + imgHeight > 280) {
+      doc.addPage();
+      y = 20;
+    }
+
+    doc.addImage(imgData, "PNG", 15, y, imgWidth, imgHeight);
+    y += imgHeight + 15;
+  }
+
+  // Descargar
   doc.save("reporte_parqueaderos.pdf");
 };
 

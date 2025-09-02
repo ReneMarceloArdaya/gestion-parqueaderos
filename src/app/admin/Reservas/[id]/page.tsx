@@ -67,41 +67,49 @@ export default function EditReservaPage() {
     fetchReserva();
   }, [id, router, supabase]);
 
-  const handleGuardar = async () => {
-    if (!reserva) return;
+const handleGuardar = async () => {
+  if (!reserva) return;
 
-    // Actualizar reserva
-    const { error: errorReserva } = await supabase
-      .from("reservas")
-      .update({ hora_inicio: horaInicio, hora_fin: horaFin, estado })
-      .eq("id", reserva.id);
+  // Actualizar reserva
+  const { error: errorReserva } = await supabase
+    .from("reservas")
+    .update({
+      hora_inicio: horaInicio,
+      hora_fin: horaFin,
+      estado,
+    })
+    .eq("id", reserva.id);
 
-    if (errorReserva) {
-      alert("Error al actualizar la reserva: " + errorReserva.message);
-      return;
-    }
+  if (errorReserva) {
+    alert("Error al actualizar la reserva: " + errorReserva.message);
+    return;
+  }
 
-    // Determinar estado de la transacción según la reserva
-    let estadoTransaccion: "pendiente" | "confirmado" | "fallido" = "pendiente";
-    if (estado === "confirmada") estadoTransaccion = "confirmado";
-    if (estado === "cancelada") estadoTransaccion = "fallido";
+  // Determinar estado de la transacción según la reserva
+  let estadoTransaccion: "pendiente" | "confirmado" | "fallido" = "pendiente";
+  if (estado === "confirmada") estadoTransaccion = "confirmado";
+  if (estado === "cancelada") estadoTransaccion = "fallido";
 
-    // Actualizar transacción asociada
-    const { error: errorTransaccion } = await supabase
-      .from("transacciones")
-      .update({ estado: estadoTransaccion })
-      .eq("reserva_id", reserva.id);
+  // Actualizar transacciones asociadas a esta reserva
+  const { error: errorTransaccion } = await supabase
+    .from("transacciones")
+    .update({ estado: estadoTransaccion })
+    .eq("reserva_id", reserva.id);
 
-    if (errorTransaccion) {
-      alert(
-        "Reserva actualizada, pero hubo un error al actualizar la transacción: " +
-          errorTransaccion.message
-      );
-    } else {
-      alert("Reserva y transacción actualizadas correctamente");
-      router.push("/admin/Reservas");
-    }
-  };
+  if (errorTransaccion) {
+    alert(
+      "Reserva actualizada, pero hubo un error al actualizar la transacción: " +
+        errorTransaccion.message
+    );
+    return;
+  }
+
+  alert("Reserva y transacción actualizadas correctamente");
+  router.push("/admin/Reservas");
+};
+
+
+
 
   if (loading) return <p>Cargando reserva...</p>;
 

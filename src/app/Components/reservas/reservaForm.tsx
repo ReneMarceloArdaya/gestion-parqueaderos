@@ -28,21 +28,11 @@ export function ReservaAdminForm() {
   const [horaInicio, setHoraInicio] = useState("")
   const [horaFin, setHoraFin] = useState("")
 
-  // Cargar usuarios, parqueaderos y tipos de vehículo
   useEffect(() => {
     const fetchData = async () => {
-      const { data: usuariosData } = await supabase
-        .from("usuarios")
-        .select("id, nombre, rol")
-        .eq("rol", "usuario")
-
-      const { data: parqueaderosData } = await supabase
-        .from("parqueaderos")
-        .select("id, nombre")
-
-      const { data: tiposData } = await supabase
-        .from("tipos_vehiculo")
-        .select("id, nombre")
+      const { data: usuariosData } = await supabase.from("usuarios").select("id, nombre, rol").eq("rol", "usuario")
+      const { data: parqueaderosData } = await supabase.from("parqueaderos").select("id, nombre")
+      const { data: tiposData } = await supabase.from("tipos_vehiculo").select("id, nombre")
 
       setUsuarios((usuariosData || []).map(u => ({ id: u.id, nombre: u.nombre ?? "", rol: u.rol })))
       setParqueaderos(parqueaderosData || [])
@@ -51,204 +41,132 @@ export function ReservaAdminForm() {
     fetchData()
   }, [])
 
-  // Cargar niveles cuando se selecciona un parqueadero
   useEffect(() => {
     if (!parqueaderoId) {
-      setNiveles([])
-      setNivelId(null)
-      return
+      setNiveles([]); setNivelId(null); return
     }
-
     const fetchNiveles = async () => {
-      const { data, error } = await supabase
-        .from("niveles")
-        .select("id, nombre, parqueadero_id")
-        .eq("parqueadero_id", parqueaderoId)
-
-      if (error) {
-        alert(error.message)
-        return
-      }
-
+      const { data, error } = await supabase.from("niveles").select("id, nombre, parqueadero_id").eq("parqueadero_id", parqueaderoId)
+      if (error) return alert(error.message)
       setNiveles(data || [])
       setNivelId(null)
       setPlazaId(null)
     }
-
     fetchNiveles()
   }, [parqueaderoId])
 
-  // Cargar plazas cuando se selecciona un nivel
-  // Cargar plazas cuando se selecciona un nivel
-// Cargar plazas cuando se selecciona un nivel
-useEffect(() => {
-  if (!nivelId) {
-    setPlazas([]);
-    setPlazaId(null);
-    return;
-  }
-
-  const fetchPlazas = async () => {
-    console.log("nivelId seleccionado:", nivelId);
-
-    const { data, error } = await supabase
-      .from("plazas")
-      .select("id, codigo, estado, nivel_id, niveles!inner(parqueadero_id)") // join con niveles
-      .eq("nivel_id", nivelId)
-      .eq("estado", "libre")
-      .eq("niveles.parqueadero_id", parqueaderoId ?? 0); // validamos que pertenezca al parqueadero seleccionado
-
-    if (error) {
-      alert(error.message);
-      return;
+  useEffect(() => {
+    if (!nivelId) {
+      setPlazas([]); setPlazaId(null); return
     }
-
-    console.log("Plazas encontradas:", data);
-
-    setPlazas((data || []).map(p => ({ id: p.id, codigo: p.codigo ?? "" })));
-    setPlazaId(null);
-  };
-
-  fetchPlazas();
-}, [nivelId, parqueaderoId]);
-
-
+    const fetchPlazas = async () => {
+      const { data, error } = await supabase.from("plazas").select("id, codigo, estado").eq("nivel_id", nivelId).eq("estado", "libre")
+      if (error) return alert(error.message)
+      setPlazas((data || []).map(p => ({ id: p.id, codigo: p.codigo ?? "" })))
+      setPlazaId(null)
+    }
+    fetchPlazas()
+  }, [nivelId])
 
   const handleGuardar = async () => {
-    if (!usuarioId || !parqueaderoId || !nivelId || !plazaId || !horaInicio || !horaFin)
-      return alert("Completa todos los campos")
+    if (!usuarioId || !parqueaderoId || !nivelId || !plazaId || !horaInicio || !horaFin || !tipoVehiculoId) {
+      return alert("Completa todos los campos");
+    }
 
-   const { data: reservaCreada, error: reservaError } = await supabase
-  .from("reservas")
-  .insert({
-    usuario_id: usuarioId,
-    parqueadero_id: parqueaderoId,
-    plaza_id: plazaId,
-    tipo_vehiculo_id: tipoVehiculoId,
-    hora_inicio: horaInicio,
-    hora_fin: horaFin,
-    estado: "activa"
-  })
-  .select()
-  .single();
+    try {
+      // Crear reserva
+      const { data: reserva, error: reservaError } = await supabase
+        .from("reservas")
+        .insert({
+          usuario_id: usuarioId,
+          parqueadero_id: parqueaderoId,
+          plaza_id: plazaId,
+          tipo_vehiculo_id: tipoVehiculoId,
+          hora_inicio: horaInicio,
+          hora_fin: horaFin,
+          estado: "activa"
+        })
+        .select()
+        .single();
 
-if (reservaError) return alert(reservaError.message);
+      if (reservaError) throw reservaError;
+      if (!reserva?.id) throw new Error("No se obtuvo el ID de la reserva");
 
-// Calcular importe (puedes ajustarlo según tu lógica de tarifas)
-const duracionHoras =
-  (new Date(horaFin).getTime() - new Date(horaInicio).getTime()) / 1000 / 3600;
-const precioPorHora = 10; // <- ejemplo fijo, aquí podrías consultar tabla tarifas
-const importe = duracionHoras * precioPorHora;
+      // Actualizar plaza a ocupada
+      await supabase.from("plazas").update({ estado: "ocupada" }).eq("id", plazaId);
 
-// Crear transacción automáticamente
-const { error: transaccionError } = await supabase.from("transacciones").insert({
-  reserva_id: reservaCreada.id,
-  usuario_id: usuarioId,
-  importe,
-  moneda: "BOB",
-  estado: "pendiente", // estado inicial
-  proveedor_pago: null,
-  referencia: null
-});
+      // Calcular importe
+      const { data: tarifa, error: tarifaError } = await supabase
+        .from("tarifas")
+        .select("precio_por_hora")
+        .eq("parqueadero_id", parqueaderoId)
+        .eq("tipo_vehiculo_id", tipoVehiculoId)
+        .single();
+      if (tarifaError || !tarifa) throw new Error("No se encontró tarifa");
 
-if (transaccionError) console.error(transaccionError);
-else console.log("Transacción creada automáticamente");
+      const duracionHoras = (new Date(horaFin).getTime() - new Date(horaInicio).getTime()) / 1000 / 3600;
+      const importe = (tarifa.precio_por_hora ?? 0) * duracionHoras;
 
-alert("Reserva y transacción creadas exitosamente");
-router.push("/admin/Reservas");
+      // Crear transacción
+      const { error: transaccionError } = await supabase.from("transacciones").insert({
+        reserva_id: reserva.id,
+        usuario_id: usuarioId,
+        importe,
+        moneda: "BOB",
+        estado: "pendiente"
+      });
+      if (transaccionError) throw transaccionError;
 
+      alert("Reserva y transacción creadas exitosamente");
+      router.push("/admin/Reservas");
 
-  
-  }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Ocurrió un error al crear la reserva o transacción");
+    }
+  };
 
   return (
     <div className="border p-4 rounded-md shadow-md">
       <h2 className="font-bold mb-4">Crear Reserva (Admin)</h2>
 
       <label>Usuario:</label>
-      <select
-        value={usuarioId}
-        onChange={e => setUsuarioId(e.target.value)}
-        className="border p-2 mb-2 w-full"
-      >
+      <select value={usuarioId} onChange={e => setUsuarioId(e.target.value)} className="border p-2 mb-2 w-full">
         <option value="">-- Selecciona usuario --</option>
-        {usuarios.map(u => (
-          <option key={u.id} value={u.id}>{u.nombre}</option>
-        ))}
+        {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
       </select>
 
       <label>Parqueadero:</label>
-      <select
-        value={parqueaderoId || ""}
-        onChange={e => setParqueaderoId(Number(e.target.value))}
-        className="border p-2 mb-2 w-full"
-      >
+      <select value={parqueaderoId || ""} onChange={e => setParqueaderoId(Number(e.target.value))} className="border p-2 mb-2 w-full">
         <option value="">-- Selecciona parqueadero --</option>
-        {parqueaderos.map(p => (
-          <option key={p.id} value={p.id}>{p.nombre}</option>
-        ))}
+        {parqueaderos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
       </select>
 
       <label>Nivel:</label>
-      <select
-        value={nivelId || ""}
-        onChange={e => setNivelId(Number(e.target.value))}
-        className="border p-2 mb-2 w-full"
-        disabled={!niveles.length}
-      >
+      <select value={nivelId || ""} onChange={e => setNivelId(Number(e.target.value))} className="border p-2 mb-2 w-full" disabled={!niveles.length}>
         <option value="">-- Selecciona nivel --</option>
-        {niveles.map(n => (
-          <option key={n.id} value={n.id}>{n.nombre ?? "Sin nombre"}</option>
-        ))}
+        {niveles.map(n => <option key={n.id} value={n.id}>{n.nombre ?? "Sin nombre"}</option>)}
       </select>
 
       <label>Plaza:</label>
-      <select
-        value={plazaId || ""}
-        onChange={e => setPlazaId(Number(e.target.value))}
-        className="border p-2 mb-2 w-full"
-        disabled={!plazas.length}
-      >
+      <select value={plazaId || ""} onChange={e => setPlazaId(Number(e.target.value))} className="border p-2 mb-2 w-full" disabled={!plazas.length}>
         <option value="">-- Selecciona plaza --</option>
-        {plazas.map(p => (
-          <option key={p.id} value={p.id}>{p.codigo}</option>
-        ))}
+        {plazas.map(p => <option key={p.id} value={p.id}>{p.codigo}</option>)}
       </select>
 
       <label>Tipo de vehículo:</label>
-      <select
-        value={tipoVehiculoId || ""}
-        onChange={e => setTipoVehiculoId(Number(e.target.value))}
-        className="border p-2 mb-2 w-full"
-      >
+      <select value={tipoVehiculoId || ""} onChange={e => setTipoVehiculoId(Number(e.target.value))} className="border p-2 mb-2 w-full">
         <option value="">-- Selecciona tipo --</option>
-        {tiposVehiculo.map(t => (
-          <option key={t.id} value={t.id}>{t.nombre}</option>
-        ))}
+        {tiposVehiculo.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
       </select>
 
       <label>Hora inicio:</label>
-      <input
-        type="datetime-local"
-        value={horaInicio}
-        onChange={e => setHoraInicio(e.target.value)}
-        className="border p-2 mb-2 w-full"
-      />
+      <input type="datetime-local" value={horaInicio} onChange={e => setHoraInicio(e.target.value)} className="border p-2 mb-2 w-full" />
 
       <label>Hora fin:</label>
-      <input
-        type="datetime-local"
-        value={horaFin}
-        onChange={e => setHoraFin(e.target.value)}
-        className="border p-2 mb-4 w-full"
-      />
+      <input type="datetime-local" value={horaFin} onChange={e => setHoraFin(e.target.value)} className="border p-2 mb-4 w-full" />
 
-      <button
-        onClick={handleGuardar}
-        className="bg-blue-500 text-white px-4 py-2 rounded"
-      >
-        Guardar Reserva
-      </button>
+      <button onClick={handleGuardar} className="bg-blue-500 text-white px-4 py-2 rounded">Guardar Reserva</button>
     </div>
   )
 }

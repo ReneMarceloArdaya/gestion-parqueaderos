@@ -7,19 +7,35 @@ import "mapbox-gl/dist/mapbox-gl.css"
 type Plaza = {
   id: number
   codigo: string | null
-  coordenada: string | null // formato POINT(lng lat)
+  coordenada: any // ahora puede ser string "POINT(...)" o un objeto GeoJSON
   estado: "libre" | "ocupada" | "reservada" | "fuera_servicio"
 }
 
-function parseCoordenada(coordenada: string | null): { lng: number; lat: number } | null {
+function parseCoordenada(coordenada: any): { lng: number; lat: number } | null {
   if (!coordenada) return null
-  try {
-    const inside = coordenada.replace("POINT(", "").replace(")", "").trim()
-    const [lngStr, latStr] = inside.split(/\s+/)
-    return { lng: parseFloat(lngStr), lat: parseFloat(latStr) }
-  } catch {
-    return null
+
+  // Caso 1: viene como string POINT(lng lat)
+  if (typeof coordenada === "string" && coordenada.startsWith("POINT(")) {
+    try {
+      const inside = coordenada.replace("POINT(", "").replace(")", "").trim()
+      const [lngStr, latStr] = inside.split(/\s+/)
+      return { lng: parseFloat(lngStr), lat: parseFloat(latStr) }
+    } catch {
+      return null
+    }
   }
+
+  // Caso 2: viene como objeto GeoJSON Polygon
+  if (typeof coordenada === "object" && coordenada.type === "Polygon") {
+    const coords = coordenada.coordinates?.[0]
+    if (!coords || coords.length < 3) return null
+    // Sacamos el centro aproximado del polígono (ejemplo: primer y tercer vértice)
+    const lng = (coords[0][0] + coords[2][0]) / 2
+    const lat = (coords[0][1] + coords[2][1]) / 2
+    return { lng, lat }
+  }
+
+  return null
 }
 
 export default function PlazaMap({ plazas }: { plazas: Plaza[] }) {
