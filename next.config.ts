@@ -1,6 +1,22 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
   webpack: (config, { isServer }) => {
     // Configurar para evitar problemas con Konva en el servidor
     if (!isServer) {

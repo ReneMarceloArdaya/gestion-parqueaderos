@@ -188,12 +188,12 @@ export function ParkingMap() {
 
   // Función para manejar detalles del parqueadero
   const handleViewDetails = useCallback((id: number) => {
-    router.push(`/operator/parkings/${id}`);
+    router.push(`/parkings?parking=${id}`);
   }, [router]);
 
   // Función para manejar reserva
   const handleReserve = useCallback((id: number) => {
-    router.push(`/operator/reservations?parking=${id}`);
+    router.push(`/reservations?parking=${id}`);
   }, [router]);
 
   // Crear contenido del popup

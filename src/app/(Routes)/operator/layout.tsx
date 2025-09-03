@@ -131,6 +131,11 @@ export default function OperatorLayout({
       icon: SquareParking,
     },
     {
+      title: "Tarifas",
+      href: "/operator/rates",
+      icon: CreditCard,
+    },
+    {
       title: "Imágenes",
       href: "/operator/images",
       icon: Image,

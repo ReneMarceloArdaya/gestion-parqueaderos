@@ -30,6 +30,12 @@ export type LevelInsert = Database['public']['Tables']['niveles']['Insert']
 export type LevelUpdate = Database['public']['Tables']['niveles']['Update']
 export type Plaza = Database['public']['Tables']['plazas']['Row']
 
+export type Tarifa = Database['public']['Tables']['tarifas']['Row']
+export type TarifaInsert = Database['public']['Tables']['tarifas']['Insert']
+export type TarifaUpdate = Database['public']['Tables']['tarifas']['Update']
+
+export type TipoVehiculo = Database['public']['Tables']['tipos_vehiculo']['Row']
+
 
 export type UserWithRole = {
   id: string
