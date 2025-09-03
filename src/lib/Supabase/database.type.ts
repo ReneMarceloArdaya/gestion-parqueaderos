@@ -18,6 +18,7 @@ export type Database = {
           website: string | null
           creado_at: string
           actualizado_at: string
+          usuario_id: string | null 
         }
         Insert: {
           id?: number
@@ -27,6 +28,7 @@ export type Database = {
           website?: string | null
           creado_at?: string
           actualizado_at?: string
+          usuario_id?: string | null 
         }
         Update: {
           id?: number
@@ -36,8 +38,17 @@ export type Database = {
           website?: string | null
           creado_at?: string
           actualizado_at?: string
+          usuario_id?: string | null 
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "operadores_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       parqueaderos: {
         Row: {
@@ -110,6 +121,7 @@ export type Database = {
           activo: boolean
           creado_at: string
           actualizado_at: string
+          public_id_cloudinary: string
         }
         Insert: {
           id?: number
@@ -122,6 +134,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id_cloudinary?: string
         }
         Update: {
           id?: number
@@ -134,6 +147,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id_cloudinary?: string
         }
         Relationships: [
           {
@@ -152,7 +166,6 @@ export type Database = {
           nombre: string | null
           orden: number | null
           capacidad: number | null
-          geom: string | null
           creado_at: string
         }
         Insert: {
@@ -161,7 +174,6 @@ export type Database = {
           nombre?: string | null
           orden?: number | null
           capacidad?: number | null
-          geom?: string | null
           creado_at?: string
         }
         Update: {
@@ -170,7 +182,6 @@ export type Database = {
           nombre?: string | null
           orden?: number | null
           capacidad?: number | null
-          geom?: string | null
           creado_at?: string
         }
         Relationships: [
@@ -196,6 +207,7 @@ export type Database = {
           activo: boolean
           creado_at: string
           actualizado_at: string
+          public_id: string
         }
         Insert: {
           id?: number
@@ -209,6 +221,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id: string
         }
         Update: {
           id?: number
@@ -222,6 +235,7 @@ export type Database = {
           activo?: boolean
           creado_at?: string
           actualizado_at?: string
+          public_id: string
         }
         Relationships: [
           {

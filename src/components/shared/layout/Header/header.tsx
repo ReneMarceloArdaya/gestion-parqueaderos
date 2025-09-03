@@ -1,4 +1,4 @@
-"use client";
+'use client'
 
 import { Button } from "@/components/ui/button";
 import {
@@ -11,12 +11,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, Car, LogIn, LogOut, User, Shield, MapPin } from "lucide-react";
+import {
+  Menu,
+  Car,
+  LogIn,
+  LogOut,
+  User,
+  Shield,
+  MapPin,
+  LandPlot,
+} from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/Supabase/supabaseClient";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import { UserWithRole } from "@/lib/Supabase/supabaseClient";
 import { useRouter } from "next/navigation";
 
 export function Header() {
@@ -118,7 +126,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <Car className="h-6 w-6 text-blue-600" />
-            <span className="hidden sm:inline">ParkManager</span>
+            <span className="hidden sm:inline">UrbanPark</span>
           </Link>
         </div>
 
@@ -164,6 +172,11 @@ export function Header() {
                     <p className="text-xs leading-none text-muted-foreground">
                       {user.email}
                     </p>
+                    {userRole && (
+                      <p className="text-xs leading-none text-muted-foreground mt-1">
+                        Rol: <span className="capitalize font-medium">{userRole}</span>
+                      </p>
+                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -173,7 +186,9 @@ export function Header() {
                     <span>Perfil</span>
                   </Link>
                 </DropdownMenuItem>
-                {(isAdmin || isOperador) && (
+                
+                {/* Panel Admin - Solo para admins */}
+                {isAdmin && (
                   <DropdownMenuItem asChild>
                     <Link href="/admin" className="cursor-pointer">
                       <Shield className="mr-2 h-4 w-4" />
@@ -181,6 +196,17 @@ export function Header() {
                     </Link>
                   </DropdownMenuItem>
                 )}
+                
+                {/* Panel Operador - Para operadores y admins */}
+                {(isOperador || isAdmin) && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/operator" className="cursor-pointer">
+                      <LandPlot className="mr-2 h-4 w-4" />
+                      <span>Panel Operador</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}
@@ -203,78 +229,6 @@ export function Header() {
             </Button>
           )}
 
-          {/* Menú móvil */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-64">
-              <div className="flex flex-col h-full">
-                <div className="flex items-center gap-2 py-4 border-b">
-                  <Car className="h-6 w-6 text-blue-600" />
-                  <span className="font-semibold">ParkManager</span>
-                </div>
-
-                <nav className="flex flex-col gap-2 py-4 flex-1">
-                  <Link
-                    href="/"
-                    className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-100 text-sm font-medium"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    <span>Mapa</span>
-                  </Link>
-
-                  {user && (
-                    <>
-                      <div className="border-t pt-4 mt-4">
-                        <Link
-                          href="/profile"
-                          className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-100 text-sm"
-                        >
-                          <User className="h-4 w-4" />
-                          <span>Perfil</span>
-                        </Link>
-                        {(isAdmin || isOperador) && (
-                          <Link
-                            href="/admin"
-                            className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-100 text-sm"
-                          >
-                            <Shield className="h-4 w-4" />
-                            <span>Panel Admin</span>
-                          </Link>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </nav>
-
-                <div className="border-t pt-4">
-                  {user ? (
-                    <Button
-                      onClick={handleLogout}
-                      variant="outline"
-                      className="w-full justify-start gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Cerrar sesión
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleLogin}
-                      variant="default"
-                      className="w-full justify-start gap-2"
-                    >
-                      <LogIn className="h-4 w-4" />
-                      Ingresar
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
         </div>
       </div>
     </header>
